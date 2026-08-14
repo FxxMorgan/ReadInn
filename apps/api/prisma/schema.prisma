@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountStatus {
+  pending_verification
+  active
+  suspended
+  deleted
+}
+
+enum StoryStatus {
+  draft
+  published
+  completed
+  archived
+  suspended
+}
+
+enum ChapterStatus {
+  draft
+  scheduled
+  published
+  unpublished
+  archived
+}
+
+model User {
+  id                 String        @id @default(uuid()) @db.Uuid
+  email              String        @unique
+  username           String        @unique
+  passwordHash       String        @map("password_hash")
+  accountStatus      AccountStatus @default(pending_verification) @map("account_status")
+  isAdmin            Boolean       @default(false) @map("is_admin")
+  emailVerifiedAt    DateTime?     @map("email_verified_at")
+  writerOnboardedAt  DateTime?     @map("writer_onboarded_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  deletedAt          DateTime?     @map("deleted_at")
+  profile            UserProfile?
+  stories            Story[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  userId        String   @id @map("user_id") @db.Uuid
+  displayName   String   @map("display_name")
+  bio           String?  @db.VarChar(500)
+  avatarUrl     String?  @map("avatar_url")
+  donationUrl   String?  @map("donation_url")
+  locale        String   @default("es")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Story {
+  id                   String       @id @default(uuid()) @db.Uuid
+  authorId             String       @map("author_id") @db.Uuid
+  slug                 String       @unique
+  title                String       @db.VarChar(150)
+  synopsis             String       @db.VarChar(3000)
+  status               StoryStatus  @default(draft)
+  isMature             Boolean      @default(false) @map("is_mature")
+  coverUrl             String?      @map("cover_url")
+  languageCode         String       @default("es") @map("language_code")
+  wordCount            Int          @default(0) @map("word_count")
+  publishedChapterCount Int         @default(0) @map("published_chapter_count")
+  publishedAt          DateTime?    @map("published_at")
+  completedAt          DateTime?    @map("completed_at")
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+  archivedAt           DateTime?    @map("archived_at")
+  author               User         @relation(fields: [authorId], references: [id])
+  chapters             Chapter[]
+  genres               StoryGenre[]
+
+  @@index([authorId, updatedAt(sort: Desc)])
+  @@index([status, publishedAt(sort: Desc)])
+  @@map("stories")
+}
+
+model Genre {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String       @unique @db.VarChar(80)
+  slug      String       @unique @db.VarChar(80)
+  isActive  Boolean      @default(true) @map("is_active")
+  sortOrder Int          @default(0) @map("sort_order")
+  stories   StoryGenre[]
+
+  @@map("genres")
+}
+
+model StoryGenre {
+  storyId String @map("story_id") @db.Uuid
+  genreId String @map("genre_id") @db.Uuid
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  genre   Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, genreId])
+  @@map("story_genres")
+}
+
+model Chapter {
+  id                String        @id @default(uuid()) @db.Uuid
+  storyId           String        @map("story_id") @db.Uuid
+  slug              String        @db.VarChar(150)
+  title             String        @db.VarChar(150)
+  status            ChapterStatus @default(draft)
+  position          Int
+  contentJson       Json          @map("content_json")
+  plainText         String        @map("plain_text")
+  contentVersion    Int           @default(1) @map("content_version")
+  wordCount         Int           @default(0) @map("word_count")
+  estimatedReadMin  Int           @default(0) @map("estimated_read_minutes")
+  publishedAt       DateTime?     @map("published_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  archivedAt        DateTime?     @map("archived_at")
+  story             Story         @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, slug])
+  @@unique([storyId, position])
+  @@index([storyId, status, position])
+  @@map("chapters")
+}

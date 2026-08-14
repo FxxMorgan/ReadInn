@@ -1,0 +1,21 @@
+{
+  "name": "readinn",
+  "private": true,
+  "packageManager": "pnpm@11.1.1",
+  "scripts": {
+    "dev:api": "pnpm --filter @readinn/api dev",
+    "build:api": "pnpm --filter @readinn/api build",
+    "test:api": "pnpm --filter @readinn/api test",
+    "lint:api": "pnpm --filter @readinn/api lint",
+    "prisma:generate": "pnpm --filter @readinn/api prisma:generate",
+    "prisma:migrate": "pnpm --filter @readinn/api prisma:migrate"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}
