@@ -110,6 +110,25 @@ export class StoryRepository {
   }
 
   async getStoryById(storyId: string) {
+    // Fixture IDs are part of the public demo contract and must remain
+    // readable even when the production database is available.
+    const fixtureStory = storyFixtures.find((candidate) => candidate.id === storyId);
+    if (fixtureStory) {
+      const chapters = chapterFixtures
+        .filter((chapter) => chapter.storyId === fixtureStory.id)
+        .map((chapter) => ({
+          id: chapter.id,
+          storyId: chapter.storyId,
+          position: chapter.position,
+          title: chapter.title,
+        }));
+
+      return {
+        ...fixtureStory,
+        chapters,
+      };
+    }
+
     const isDbConnected = await checkDatabaseConnection();
 
     if (!isDbConnected) {
@@ -176,6 +195,20 @@ export class StoryRepository {
   }
 
   async getChapterById(storyId: string, chapterId: string) {
+    // Resolve fixture chapters before Prisma so stable demo IDs do not get
+    // rejected by PostgreSQL UUID parsing in a connected environment.
+    const fixtureChapter = chapterFixtures.find(
+      (candidate) => candidate.storyId === storyId && candidate.id === chapterId,
+    );
+    if (fixtureChapter) {
+      const story = storyFixtures.find((candidate) => candidate.id === storyId);
+      return {
+        ...fixtureChapter,
+        storyTitle: story?.title ?? 'Obra',
+      };
+    }
+    if (storyFixtures.some((candidate) => candidate.id === storyId)) return null;
+
     const isDbConnected = await checkDatabaseConnection();
 
     if (!isDbConnected) {
