@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Estadísticas de Creador - ReadInn</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=Merriweather:wght@400;700&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-fixed": "#2a1700",
+                        "primary-container": "#f59e0b",
+                        "surface": "#f7f9fb",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed": "#d5e3fd",
+                        "inverse-surface": "#2d3133",
+                        "paper-text": "#432818",
+                        "on-primary-container": "#613b00",
+                        "on-tertiary-fixed-variant": "#3323cc",
+                        "outline-variant": "#d8c3ad",
+                        "on-background": "#191c1e",
+                        "on-secondary-fixed-variant": "#3a485c",
+                        "on-primary-fixed-variant": "#653e00",
+                        "background": "#f7f9fb",
+                        "surface-container-low": "#f2f4f6",
+                        "inverse-on-surface": "#eff1f3",
+                        "surface-container-highest": "#e0e3e5",
+                        "tertiary-container": "#aaa8ff",
+                        "surface-container-high": "#e6e8ea",
+                        "on-surface": "#191c1e",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#ffddb8",
+                        "indigo-highlight": "#6366F1",
+                        "secondary-fixed-dim": "#b9c7e0",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed": "#0d1c2f",
+                        "outline": "#867461",
+                        "inverse-primary": "#ffb95f",
+                        "tertiary": "#4d44e3",
+                        "secondary-container": "#d5e3fd",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-container": "#2f1dc9",
+                        "on-secondary-container": "#57657b",
+                        "paper-warm": "#FBF0D9",
+                        "surface-bright": "#f7f9fb",
+                        "surface-dim": "#d8dadc",
+                        "tertiary-fixed": "#e2dfff",
+                        "surface-tint": "#855300",
+                        "primary": "#855300",
+                        "surface-container": "#eceef0",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed": "#0f0069",
+                        "surface-variant": "#e0e3e5",
+                        "on-surface-variant": "#534434",
+                        "error-container": "#ffdad6",
+                        "secondary": "#515f74",
+                        "primary-fixed-dim": "#ffb95f",
+                        "tertiary-fixed-dim": "#c3c0ff",
+                        "on-secondary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-md": "1.5rem",
+                        "margin-mobile": "1rem",
+                        "max-width-content": "1280px",
+                        "stack-xs": "0.25rem",
+                        "gutter": "1.5rem",
+                        "max-width-reader": "720px",
+                        "margin-desktop": "3rem",
+                        "stack-sm": "0.75rem",
+                        "stack-lg": "3rem"
+                    },
+                    "fontFamily": {
+                        "mono-reader": ["JetBrains Mono"],
+                        "headline-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "ui-body": ["Inter"],
+                        "reader-body": ["Merriweather"],
+                        "headline-lg-mobile": ["Inter"],
+                        "ui-body-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "mono-reader": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.06em", "fontWeight": "700" }],
+                        "headline-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "ui-body": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "reader-body": ["19px", { "lineHeight": "1.85", "letterSpacing": "0.01em", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "34px", "fontWeight": "700" }],
+                        "ui-body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Subtle chart animation */
+        @keyframes drawLine {
+            to { stroke-dashoffset: 0; }
+        }
+        .chart-path {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawLine 2s ease-out forwards;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-ui-body antialiased min-h-screen flex flex-col md:flex-row">
+<!-- Mobile TopAppBar -->
+<header class="md:hidden fixed top-0 w-full z-50 border-b border-outline-variant bg-surface flex items-center justify-between px-margin-mobile h-16 transition-colors">
+<button class="text-primary hover:bg-surface-container-high transition-colors active:scale-95 transition-transform p-2 rounded-full -ml-2">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">ReadInn</h1>
+<button class="hover:bg-surface-container-high transition-colors active:scale-95 transition-transform p-1 rounded-full -mr-1">
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center overflow-hidden">
+<span class="material-symbols-outlined text-secondary text-lg">person</span>
+</div>
+</button>
+</header>
+<!-- Desktop NavigationDrawer -->
+<nav class="hidden md:flex h-screen w-80 rounded-r-xl border-r border-outline-variant bg-surface shadow-lg flex-col sticky top-0 z-[60] flex-shrink-0">
+<!-- Header -->
+<div class="p-6 border-b border-outline-variant flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-xl overflow-hidden shrink-0">
+                LC
+            </div>
+<div class="flex flex-col">
+<span class="font-headline-md text-base font-bold text-on-surface truncate">Lector Curioso</span>
+<span class="font-ui-body-sm text-secondary">Plan Premium</span>
+</div>
+</div>
+<div class="p-6 pb-2">
+<h2 class="font-headline-md text-headline-md font-bold text-primary">ReadInn</h2>
+</div>
+<!-- Links -->
+<div class="flex-1 overflow-y-auto py-4 flex flex-col gap-2">
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 mx-2 hover:bg-surface-container-highest transition-colors active:opacity-80 rounded-full font-ui-body text-ui-body" href="#">
+<span class="material-symbols-outlined">search</span>
+<span>Explorar</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 mx-2 hover:bg-surface-container-highest transition-colors active:opacity-80 rounded-full font-ui-body text-ui-body" href="#">
+<span class="material-symbols-outlined">book</span>
+<span>Biblioteca</span>
+</a>
+<!-- Active State: Estudio matches Creator context -->
+<a class="flex items-center gap-4 bg-primary-container text-on-primary-container rounded-full mx-2 px-4 py-3 font-bold active:opacity-80 font-ui-body text-ui-body" href="#">
+<span class="material-symbols-outlined icon-fill">auto_stories</span>
+<span>Estudio</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 mx-2 hover:bg-surface-container-highest transition-colors active:opacity-80 rounded-full font-ui-body text-ui-body" href="#">
+<span class="material-symbols-outlined">history</span>
+<span>Historial</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 mx-2 hover:bg-surface-container-highest transition-colors active:opacity-80 rounded-full font-ui-body text-ui-body mt-auto" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Ajustes</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col min-w-0 pt-16 md:pt-0 pb-20 md:pb-0">
+<div class="flex-1 w-full max-w-max-width-content mx-auto px-margin-mobile md:px-margin-desktop py-stack-lg">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-stack-md mb-stack-lg">
+<div>
+<h1 class="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface mb-2">Rendimiento</h1>
+<p class="font-ui-body text-ui-body text-secondary">Analiza el impacto de tus obras en los últimos 30 días.</p>
+</div>
+<div class="flex items-center gap-2 bg-surface-container-low border border-outline-variant rounded-full px-4 py-2 cursor-pointer hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-secondary text-sm">calendar_today</span>
+<span class="font-ui-body-sm text-ui-body-sm font-semibold text-on-surface">Últimos 30 días</span>
+<span class="material-symbols-outlined text-secondary text-sm">expand_more</span>
+</div>
+</div>
+<!-- KPIs Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter mb-stack-lg">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 hover:shadow-sm transition-shadow">
+<div class="flex items-center justify-between mb-4">
+<span class="font-ui-body-sm text-ui-body-sm text-secondary font-semibold uppercase tracking-wider">Vistas Totales</span>
+<div class="w-8 h-8 rounded-full bg-primary-fixed-dim/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-sm">visibility</span>
+</div>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-xl text-headline-xl text-on-surface">124.5K</span>
+</div>
+<div class="mt-2 flex items-center gap-1 text-emerald-600 font-ui-body-sm text-ui-body-sm">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+14.2% vs mes anterior</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 hover:shadow-sm transition-shadow">
+<div class="flex items-center justify-between mb-4">
+<span class="font-ui-body-sm text-ui-body-sm text-secondary font-semibold uppercase tracking-wider">Tiempo Promedio</span>
+<div class="w-8 h-8 rounded-full bg-primary-fixed-dim/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-sm">timer</span>
+</div>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-xl text-headline-xl text-on-surface">18m</span>
+</div>
+<div class="mt-2 flex items-center gap-1 text-emerald-600 font-ui-body-sm text-ui-body-sm">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+2m vs mes anterior</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 hover:shadow-sm transition-shadow">
+<div class="flex items-center justify-between mb-4">
+<span class="font-ui-body-sm text-ui-body-sm text-secondary font-semibold uppercase tracking-wider">Nuevos Seguidores</span>
+<div class="w-8 h-8 rounded-full bg-primary-fixed-dim/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary-container text-sm">group_add</span>
+</div>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-xl text-headline-xl text-on-surface">842</span>
+</div>
+<div class="mt-2 flex items-center gap-1 text-secondary font-ui-body-sm text-ui-body-sm">
+<span class="material-symbols-outlined text-sm">trending_flat</span>
+<span>Sin cambios significativos</span>
+</div>
+</div>
+</div>
+<!-- Main Chart Area -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 mb-stack-lg">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline-md text-base font-bold text-on-surface">Crecimiento de Lecturas</h3>
+<div class="flex gap-2">
+<span class="w-3 h-3 rounded-full bg-primary-container self-center"></span>
+<span class="font-ui-body-sm text-ui-body-sm text-secondary">Lecturas Completadas</span>
+</div>
+</div>
+<!-- Stylized SVG Chart representation -->
+<div class="w-full h-64 relative border-b border-l border-outline-variant/50 pt-4 pl-4">
+<!-- Y Axis Labels -->
+<div class="absolute left-0 top-0 h-full flex flex-col justify-between text-secondary font-mono-reader text-xs -ml-8">
+<span>5k</span>
+<span>4k</span>
+<span>3k</span>
+<span>2k</span>
+<span>1k</span>
+<span>0</span>
+</div>
+<svg class="w-full h-full overflow-visible" preserveaspectratio="none" viewbox="0 0 100 100">
+<!-- Grid lines -->
+<line class="text-outline-variant/30" stroke="currentColor" stroke-dasharray="2 2" stroke-width="0.5" x1="0" x2="100" y1="20" y2="20"></line>
+<line class="text-outline-variant/30" stroke="currentColor" stroke-dasharray="2 2" stroke-width="0.5" x1="0" x2="100" y1="40" y2="40"></line>
+<line class="text-outline-variant/30" stroke="currentColor" stroke-dasharray="2 2" stroke-width="0.5" x1="0" x2="100" y1="60" y2="60"></line>
+<line class="text-outline-variant/30" stroke="currentColor" stroke-dasharray="2 2" stroke-width="0.5" x1="0" x2="100" y1="80" y2="80"></line>
+<!-- Gradient Fill -->
+<defs>
+<lineargradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#f59e0b" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#f59e0b" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<path d="M0,80 Q10,75 20,60 T40,40 T60,50 T80,20 T100,10 L100,100 L0,100 Z" fill="url(#chartGradient)"></path>
+<!-- Line -->
+<path class="chart-path" d="M0,80 Q10,75 20,60 T40,40 T60,50 T80,20 T100,10" fill="none" stroke="#f59e0b" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<!-- Data Points -->
+<circle cx="20" cy="60" fill="#ffffff" r="1.5" stroke="#f59e0b" stroke-width="1"></circle>
+<circle cx="40" cy="40" fill="#ffffff" r="1.5" stroke="#f59e0b" stroke-width="1"></circle>
+<circle cx="60" cy="50" fill="#ffffff" r="1.5" stroke="#f59e0b" stroke-width="1"></circle>
+<circle cx="80" cy="20" fill="#ffffff" r="1.5" stroke="#f59e0b" stroke-width="1"></circle>
+<circle cx="100" cy="10" fill="#ffffff" r="1.5" stroke="#f59e0b" stroke-width="1"></circle>
+</svg>
+<!-- X Axis Labels -->
+<div class="absolute bottom-0 left-0 w-full flex justify-between text-secondary font-mono-reader text-xs -mb-6 ml-4">
+<span>1 Nov</span>
+<span>8 Nov</span>
+<span>15 Nov</span>
+<span>22 Nov</span>
+<span>30 Nov</span>
+</div>
+</div>
+</div>
+<!-- Works Breakdown Section -->
+<div>
+<h3 class="font-headline-md text-headline-md font-bold text-on-surface mb-stack-sm">Desglose por Obra</h3>
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+<!-- Table Header -->
+<div class="hidden md:grid grid-cols-12 gap-4 p-4 border-b border-outline-variant bg-surface-container-low font-label-caps text-label-caps text-secondary">
+<div class="col-span-6">Obra</div>
+<div class="col-span-2 text-right">Vistas</div>
+<div class="col-span-2 text-right">Completadas</div>
+<div class="col-span-2 text-right">Retención</div>
+</div>
+<!-- List Items -->
+<div class="divide-y divide-outline-variant">
+<!-- Item 1 -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 items-center hover:bg-surface-container-low/50 transition-colors">
+<div class="col-span-1 md:col-span-6 flex items-center gap-4">
+<img class="w-12 h-18 object-cover rounded shadow-sm shrink-0" data-alt="A minimalist, modern book cover featuring an abstract geometric representation of a city at sunset. The color palette is predominantly deep slate and vibrant orange, matching the ReadInn platform's premium editorial style. Clean typography, high contrast, flat lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDASuoSbiMpMMCEucL7iuEivuI1NsJ59UdLHknFDmhsQdTl87oTr4VRNgjbjmnzaxc5wAq1a-j-B_HPhDNfEgLI0lNoRTjUGGRo_8RR0G4R5xXAaXZnc8Vj0Ukhzh3Gv3kmWpyb92HbjugNkSxcUbSYdhHX-y_-88WKBuyv4npj-HTfCpFdflGeavf0lTEpXcdbiNFkuadqpr5klFv5mBm8HqcfWJXUO3RiM06Ci9CICmKDb7emACJ9"/>
+<div class="min-w-0">
+<h4 class="font-ui-body text-ui-body font-semibold text-on-surface truncate">Ecos de la Ciudad Cristalina</h4>
+<span class="font-label-caps text-[10px] bg-surface-container-highest text-secondary px-2 py-0.5 rounded-full inline-block mt-1">Ficción Urbana</span>
+</div>
+</div>
+<div class="col-span-1 md:col-span-2 flex justify-between md:block md:text-right">
+<span class="md:hidden font-ui-body-sm text-secondary">Vistas:</span>
+<span class="font-mono-reader text-mono-reader text-on-surface">84,201</span>
+</div>
+<div class="col-span-1 md:col-span-2 flex justify-between md:block md:text-right">
+<span class="md:hidden font-ui-body-sm text-secondary">Completadas:</span>
+<span class="font-mono-reader text-mono-reader text-on-surface">62,150</span>
+</div>
+<div class="col-span-1 md:col-span-2 flex justify-between md:items-center md:justify-end gap-2">
+<span class="md:hidden font-ui-body-sm text-secondary">Retención:</span>
+<div class="w-16 h-1.5 bg-surface-container-highest rounded-full overflow-hidden hidden md:block">
+<div class="w-[74%] h-full bg-primary-container rounded-full"></div>
+</div>
+<span class="font-mono-reader text-sm text-on-surface">74%</span>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-4 p-4 items-center hover:bg-surface-container-low/50 transition-colors">
+<div class="col-span-1 md:col-span-6 flex items-center gap-4">
+<img class="w-12 h-18 object-cover rounded shadow-sm shrink-0" data-alt="A sophisticated book cover showing a delicate, single white feather against a textured cream background. Subtle typography in dark brown. The overall aesthetic is clean, minimal, and literary, suitable for a contemporary drama novel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC2kgAhghV0C7NbZrVq8nj5hKkNPNqtQUosnxoQSLcbg0p6HuxYx96GSrKORN-MpNYJizRgXMgulxymNaoAUCpHmnSixmvODqwdakl-gBl1HH65sbpyVXUJb8Zzu0qR05v0fLYmGJVCnIeoxoEVA3YlkevzhGjPjGr8pm2cwwP91xcX2h74xylAJkliLxryl4vsR2i9KKAXX6cGBYMqu_gWhWM3jmPs1ds-rTbfExrhLcdvheX96B6W"/>
+<div class="min-w-0">
+<h4 class="font-ui-body text-ui-body font-semibold text-on-surface truncate">El Silencio de las Páginas</h4>
+<span class="font-label-caps text-[10px] bg-surface-container-highest text-secondary px-2 py-0.5 rounded-full inline-block mt-1">Drama</span>
+</div>
+</div>
+<div class="col-span-1 md:col-span-2 flex justify-between md:block md:text-right">
+<span class="md:hidden font-ui-body-sm text-secondary">Vistas:</span>
+<span class="font-mono-reader text-mono-reader text-on-surface">40,315</span>
+</div>
+<div class="col-span-1 md:col-span-2 flex justify-between md:block md:text-right">
+<span class="md:hidden font-ui-body-sm text-secondary">Completadas:</span>
+<span class="font-mono-reader text-mono-reader text-on-surface">28,900</span>
+</div>
+<div class="col-span-1 md:col-span-2 flex justify-between md:items-center md:justify-end gap-2">
+<span class="md:hidden font-ui-body-sm text-secondary">Retención:</span>
+<div class="w-16 h-1.5 bg-surface-container-highest rounded-full overflow-hidden hidden md:block">
+<div class="w-[71%] h-full bg-primary-container rounded-full"></div>
+</div>
+<span class="font-mono-reader text-sm text-on-surface">71%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer (Desktop mainly, pushed to bottom) -->
+<footer class="mt-auto w-full py-stack-lg px-margin-mobile md:px-margin-desktop flex flex-col md:flex-row justify-between items-center gap-stack-md bg-surface-container-low border-t border-outline-variant flat no shadows">
+<div class="font-headline-md text-headline-md text-primary font-bold">ReadInn</div>
+<div class="flex flex-wrap justify-center gap-4 font-ui-body-sm text-ui-body-sm">
+<a class="text-secondary hover:text-primary transition-colors opacity-100" href="#">Sobre nosotros</a>
+<a class="text-secondary hover:text-primary transition-colors opacity-100" href="#">Términos</a>
+<a class="text-secondary hover:text-primary transition-colors opacity-100" href="#">Privacidad</a>
+<a class="text-secondary hover:text-primary transition-colors opacity-100" href="#">Soporte</a>
+</div>
+<div class="text-secondary font-ui-body-sm text-ui-body-sm">© 2024 ReadInn. Todos los derechos reservados.</div>
+</footer>
+</main>
+<!-- Mobile BottomNavBar -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 bg-surface border-t border-outline-variant flex justify-around items-center py-2 px-margin-mobile pb-safe flat no shadows">
+<a class="flex flex-col items-center justify-center text-secondary hover:bg-primary-fixed-dim/10 active:scale-90 transition-transform p-2 rounded-lg w-16" href="#">
+<span class="material-symbols-outlined mb-1">explore</span>
+<span class="font-label-caps text-label-caps text-[10px]">Explorar</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary hover:bg-primary-fixed-dim/10 active:scale-90 transition-transform p-2 rounded-lg w-16" href="#">
+<span class="material-symbols-outlined mb-1">library_books</span>
+<span class="font-label-caps text-label-caps text-[10px]">Biblioteca</span>
+</a>
+<!-- Active State: Escribir -> Stats context -->
+<a class="flex flex-col items-center justify-center text-primary font-bold hover:bg-primary-fixed-dim/10 active:scale-90 transition-transform p-2 rounded-lg w-16" href="#">
+<span class="material-symbols-outlined icon-fill mb-1">edit_note</span>
+<span class="font-label-caps text-label-caps text-[10px]">Escribir</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary hover:bg-primary-fixed-dim/10 active:scale-90 transition-transform p-2 rounded-lg w-16" href="#">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-label-caps text-label-caps text-[10px]">Perfil</span>
+</a>
+</nav>
+<style>
+        /* iOS safe area support for bottom nav */
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .pb-safe {
+                padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+            }
+        }
+    </style>
+</body></html>

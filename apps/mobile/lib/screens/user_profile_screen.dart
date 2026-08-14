@@ -1,132 +1,182 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+
+import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/readinn_widgets.dart';
+import 'auth_dialog.dart';
 
 class UserProfileScreen extends ConsumerWidget {
   const UserProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Perfil'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {},
+    final auth = ref.watch(authProvider);
+    final user = auth.user;
+    return ReadInnShell(
+      currentIndex: 3,
+      actions: [
+        IconButton(
+          tooltip: 'Ajustes',
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Los ajustes estaran disponibles pronto.'),
+            ),
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
+        ),
+        const SizedBox(width: 8),
+      ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile Header Banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
-              decoration: BoxDecoration(
-                color: ReadInnColors.primaryContainer.withValues(alpha: 0.3),
-              ),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 44,
-                    backgroundColor: ReadInnColors.primary,
-                    child: const Text(
-                      'MS',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Marina Solís',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 35,
+                          backgroundColor: ReadInnColors.softOrange,
+                          backgroundImage: user == null
+                              ? null
+                              : const AssetImage(
+                                  'assets/images/profile_portrait.jpg',
+                                ),
+                          child: user == null
+                              ? const Icon(
+                                  Icons.person_outline,
+                                  size: 34,
+                                  color: ReadInnColors.primaryDeep,
+                                )
+                              : null,
                         ),
-                  ),
-                  Text(
-                    '@marina-solis',
-                    style: TextStyle(
-                      color: isDark ? ReadInnColors.darkSubtext : ReadInnColors.onSurfaceVariant,
-                      fontSize: 13,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                user?.displayName ?? 'Invitado',
+                                style: const TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                user == null
+                                    ? 'Sin cuenta'
+                                    : '@${user.username}',
+                                style: const TextStyle(
+                                  color: ReadInnColors.muted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                user == null
+                                    ? 'Inicia sesion para guardar historias y participar en la comunidad.'
+                                    : 'Lector y creador independiente en ReadInn.',
+                                style: const TextStyle(
+                                  color: ReadInnColors.muted,
+                                  height: 1.4,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (user != null)
+                          IconButton(
+                            tooltip: 'Cerrar sesion',
+                            icon: const Icon(Icons.more_horiz_rounded),
+                            onPressed: () => showModalBottomSheet<void>(
+                              context: context,
+                              builder: (context) => SafeArea(
+                                child: ListTile(
+                                  leading: const Icon(Icons.logout),
+                                  title: const Text('Cerrar sesion'),
+                                  onTap: () {
+                                    Navigator.pop(context);
+                                    ref.read(authProvider.notifier).logout();
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 500),
-                    child: Text(
-                      'Cartógrafa e investigadora de leyendas marítimas. Escribo historias donde el mar oculta secretos viejos.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? ReadInnColors.darkText : ReadInnColors.onSurface,
+                    const SizedBox(height: 18),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _ProfileStat(value: '0', label: 'Obras'),
+                        _ProfileStat(value: '0', label: 'Seguidores'),
+                        _ProfileStat(value: '0', label: 'Siguiendo'),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: user == null
+                            ? () => AuthDialog.show(context)
+                            : () => ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Perfil listo para editar.'),
+                                ),
+                              ),
+                        child: Text(
+                          user == null ? 'Iniciar sesion' : 'Editar perfil',
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Donacion / Apoyo Externo Badge
-                  ActionChip(
-                    avatar: const Icon(Icons.favorite, size: 14, color: Colors.red),
-                    label: const Text('Apoyar en Ko-fi'),
-                    onPressed: () {},
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            // Profile Stats Bar
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: const [
-                  _ProfileStatItem(number: '2', label: 'Obras'),
-                  _ProfileStatItem(number: '1,240', label: 'Seguidores'),
-                  _ProfileStatItem(number: '48', label: 'Siguiendo'),
-                ],
+            const SizedBox(height: 28),
+            const SectionHeader(title: 'Mis listas de lectura'),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 160,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: 3,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (_, index) => _ListCard(index: index),
               ),
             ),
-            const Divider(height: 1),
-            // Published Stories Section
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Obras de Marina',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: ListTile(
-                      leading: Container(
-                        width: 40,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1F5F73),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      title: const Text('La luz del faro', style: TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Misterio • 3 capítulos'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                      onTap: () => context.go('/story/story-lighthouse'),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 28),
+            const SectionHeader(title: 'Favoritos del ano'),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 180,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: 4,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (_, index) => BookCover(
+                  title: const [
+                    'The Silent City',
+                    'La orbita silenciosa',
+                    'Manana sera otro dia',
+                    'Realismo magico',
+                  ][index],
+                  asset: const [
+                    'assets/images/silent_street.jpg',
+                    'assets/images/silent_orbit.jpg',
+                    'assets/images/blue_hours.jpg',
+                    'assets/images/summer_letters.jpg',
+                  ][index],
+                  width: 112,
+                  height: 168,
+                ),
               ),
             ),
           ],
@@ -136,32 +186,78 @@ class UserProfileScreen extends ConsumerWidget {
   }
 }
 
-class _ProfileStatItem extends StatelessWidget {
-  final String number;
+class _ProfileStat extends StatelessWidget {
+  final String value;
   final String label;
 
-  const _ProfileStatItem({required this.number, required this.label});
+  const _ProfileStat({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Text(
+        value,
+        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+      ),
+      const SizedBox(height: 3),
+      Text(
+        label,
+        style: const TextStyle(color: ReadInnColors.muted, fontSize: 11),
+      ),
+    ],
+  );
+}
+
+class _ListCard extends StatelessWidget {
+  final int index;
+
+  const _ListCard({required this.index});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          number,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+    const titles = ['Lecturas de invierno', 'Favoritos del ano', 'Para releer'];
+    const images = [
+      'assets/images/silent_orbit.jpg',
+      'assets/images/silver_feather.jpg',
+      'assets/images/blue_hours.jpg',
+    ];
+    return SizedBox(
+      width: 132,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.asset(
+                    images[index],
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                titles[index],
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 2),
+              const Text(
+                '8 historias',
+                style: TextStyle(color: ReadInnColors.muted, fontSize: 10),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: ReadInnColors.onSurfaceVariant,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

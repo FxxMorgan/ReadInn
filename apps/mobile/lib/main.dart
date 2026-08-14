@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'screens/explore_screen.dart';
+import 'screens/creator_stats_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/story_detail_screen.dart';
@@ -11,20 +12,13 @@ import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    const ProviderScope(
-      child: ReadInnApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: ReadInnApp()));
 }
 
 final _router = GoRouter(
   initialLocation: '/',
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const ExploreScreen(),
-    ),
+    GoRoute(path: '/', builder: (context, state) => const ExploreScreen()),
     GoRoute(
       path: '/story/:storyId',
       builder: (context, state) {
@@ -43,6 +37,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/writer/dashboard',
       builder: (context, state) => const WriterDashboardScreen(),
+    ),
+    GoRoute(
+      path: '/writer/analytics',
+      builder: (context, state) => const CreatorStatsScreen(),
     ),
     GoRoute(
       path: '/profile',
@@ -65,7 +63,7 @@ class ReadInnApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       routerConfig: _router,
     );
   }

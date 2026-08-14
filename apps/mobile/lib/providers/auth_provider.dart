@@ -1,6 +1,9 @@
 import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/api_service.dart';
 
 class UserAccount {
   final String id;
@@ -15,21 +18,22 @@ class UserAccount {
     required this.displayName,
   });
 
-  factory UserAccount.fromJson(Map<String, dynamic> json) {
-    return UserAccount(
-      id: json['id'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      username: json['username'] as String? ?? '',
-      displayName: json['displayName'] as String? ?? json['username'] as String? ?? 'Usuario',
-    );
-  }
+  factory UserAccount.fromJson(Map<String, dynamic> json) => UserAccount(
+    id: json['id'] as String? ?? '',
+    email: json['email'] as String? ?? '',
+    username: json['username'] as String? ?? '',
+    displayName:
+        json['displayName'] as String? ??
+        json['username'] as String? ??
+        'Usuario',
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'email': email,
-        'username': username,
-        'displayName': displayName,
-      };
+    'id': id,
+    'email': email,
+    'username': username,
+    'displayName': displayName,
+  };
 }
 
 class AuthState {
@@ -53,20 +57,19 @@ class AuthState {
     String? token,
     bool? isLoading,
     String? errorMessage,
-  }) {
-    return AuthState(
-      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
-      user: user ?? this.user,
-      token: token ?? this.token,
-      isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage,
-    );
-  }
+  }) => AuthState(
+    isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+    user: user ?? this.user,
+    token: token ?? this.token,
+    isLoading: isLoading ?? this.isLoading,
+    errorMessage: errorMessage,
+  );
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
   static const String _tokenKey = 'auth_jwt_token';
   static const String _userKey = 'auth_user_info';
+  final ApiService _apiService = ApiService();
 
   AuthNotifier() : super(const AuthState()) {
     _loadFromPrefs();
@@ -75,84 +78,69 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(_tokenKey);
-    final userJsonStr = prefs.getString(_userKey);
-
-    if (token != null && userJsonStr != null) {
-      try {
-        final userMap = jsonDecode(userJsonStr) as Map<String, dynamic>;
-        state = AuthState(
-          isAuthenticated: true,
-          token: token,
-          user: UserAccount.fromJson(userMap),
-        );
-      } catch (_) {
-        state = const AuthState();
+    final userJson = prefs.getString(_userKey);
+    if (token == null || userJson == null) return;
+    try {
+      final user = UserAccount.fromJson(
+        jsonDecode(userJson) as Map<String, dynamic>,
+      );
+      if (user.id == 'user-marina-solis' &&
+          token == 'mock-jwt-token-active-session') {
+        await logout();
+        return;
       }
+      state = AuthState(isAuthenticated: true, token: token, user: user);
+    } catch (_) {
+      await logout();
     }
   }
 
   Future<bool> login(String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      // Simulate/call login API
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      final mockUser = UserAccount(
-        id: 'user-marina-solis',
-        email: email,
-        username: email.split('@').first,
-        displayName: 'Marina Solís',
-      );
-      const mockToken = 'mock-jwt-token-active-session';
-
+      final data = await _apiService.login(email, password);
+      final user = UserAccount.fromJson(data['user'] as Map<String, dynamic>);
+      final token = data['token'] as String? ?? '';
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, mockToken);
-      await prefs.setString(_userKey, jsonEncode(mockUser.toJson()));
-
-      state = AuthState(
-        isAuthenticated: true,
-        user: mockUser,
-        token: mockToken,
-        isLoading: false,
-      );
+      await prefs.setString(_tokenKey, token);
+      await prefs.setString(_userKey, jsonEncode(user.toJson()));
+      state = AuthState(isAuthenticated: true, user: user, token: token);
       return true;
-    } catch (e) {
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Credenciales incorrectas o error de conexión',
+        errorMessage:
+            'No pudimos iniciar sesion. Revisa tus datos o la conexion.',
       );
       return false;
     }
   }
 
-  Future<bool> register(String email, String username, String password, String displayName) async {
+  Future<bool> register(
+    String email,
+    String username,
+    String password,
+    String displayName,
+  ) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      final newUser = UserAccount(
-        id: 'user-new-${DateTime.now().millisecondsSinceEpoch}',
+      final data = await _apiService.register(
         email: email,
         username: username,
-        displayName: displayName.isNotEmpty ? displayName : username,
+        password: password,
+        displayName: displayName,
       );
-      const mockToken = 'mock-jwt-token-registered-session';
-
+      final user = UserAccount.fromJson(data['user'] as Map<String, dynamic>);
+      final token = data['token'] as String? ?? '';
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, mockToken);
-      await prefs.setString(_userKey, jsonEncode(newUser.toJson()));
-
-      state = AuthState(
-        isAuthenticated: true,
-        user: newUser,
-        token: mockToken,
-        isLoading: false,
-      );
+      await prefs.setString(_tokenKey, token);
+      await prefs.setString(_userKey, jsonEncode(user.toJson()));
+      state = AuthState(isAuthenticated: true, user: user, token: token);
       return true;
-    } catch (e) {
+    } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Error al registrar usuario',
+        errorMessage: 'No pudimos crear la cuenta. Revisa los datos.',
       );
       return false;
     }
@@ -166,6 +154,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 }
 
-final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
-  return AuthNotifier();
-});
+final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
+  (ref) => AuthNotifier(),
+);

@@ -25,20 +25,18 @@ class StorySummary {
     required this.coverColor,
   });
 
-  factory StorySummary.fromJson(Map<String, dynamic> json) {
-    return StorySummary(
-      id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? 'Sin título',
-      author: json['author'] as String? ?? 'Autor anónimo',
-      authorUsername: json['authorUsername'] as String? ?? 'anonimo',
-      synopsis: json['synopsis'] as String? ?? '',
-      genre: json['genre'] as String? ?? 'General',
-      status: json['status'] as String? ?? 'published',
-      chapterCount: (json['chapterCount'] as num?)?.toInt() ?? 0,
-      isMature: json['isMature'] as bool? ?? false,
-      coverColor: json['coverColor'] as String? ?? '#6366F1',
-    );
-  }
+  factory StorySummary.fromJson(Map<String, dynamic> json) => StorySummary(
+    id: json['id'] as String? ?? '',
+    title: json['title'] as String? ?? 'Sin título',
+    author: json['author'] as String? ?? 'Autor anónimo',
+    authorUsername: json['authorUsername'] as String? ?? 'anonimo',
+    synopsis: json['synopsis'] as String? ?? '',
+    genre: json['genre'] as String? ?? 'General',
+    status: json['status'] as String? ?? 'published',
+    chapterCount: (json['chapterCount'] as num?)?.toInt() ?? 0,
+    isMature: json['isMature'] as bool? ?? false,
+    coverColor: json['coverColor'] as String? ?? '#4F46E5',
+  );
 }
 
 class ChapterSummary {
@@ -54,14 +52,12 @@ class ChapterSummary {
     required this.title,
   });
 
-  factory ChapterSummary.fromJson(Map<String, dynamic> json) {
-    return ChapterSummary(
-      id: json['id'] as String? ?? '',
-      storyId: json['storyId'] as String? ?? '',
-      position: (json['position'] as num?)?.toInt() ?? 1,
-      title: json['title'] as String? ?? 'Capítulo',
-    );
-  }
+  factory ChapterSummary.fromJson(Map<String, dynamic> json) => ChapterSummary(
+    id: json['id'] as String? ?? '',
+    storyId: json['storyId'] as String? ?? '',
+    position: (json['position'] as num?)?.toInt() ?? 1,
+    title: json['title'] as String? ?? 'Capítulo',
+  );
 }
 
 class StoryDetail extends StorySummary {
@@ -82,11 +78,11 @@ class StoryDetail extends StorySummary {
   });
 
   factory StoryDetail.fromJson(Map<String, dynamic> json) {
-    final chaptersRaw = json['chapters'] as List<dynamic>? ?? [];
-    final chaptersList = chaptersRaw
-        .map((c) => ChapterSummary.fromJson(c as Map<String, dynamic>))
+    final chapters = (json['chapters'] as List<dynamic>? ?? [])
+        .map(
+          (chapter) => ChapterSummary.fromJson(chapter as Map<String, dynamic>),
+        )
         .toList();
-
     return StoryDetail(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? 'Sin título',
@@ -95,10 +91,10 @@ class StoryDetail extends StorySummary {
       synopsis: json['synopsis'] as String? ?? '',
       genre: json['genre'] as String? ?? 'General',
       status: json['status'] as String? ?? 'published',
-      chapterCount: (json['chapterCount'] as num?)?.toInt() ?? chaptersList.length,
+      chapterCount: (json['chapterCount'] as num?)?.toInt() ?? chapters.length,
       isMature: json['isMature'] as bool? ?? false,
-      coverColor: json['coverColor'] as String? ?? '#6366F1',
-      chapters: chaptersList,
+      coverColor: json['coverColor'] as String? ?? '#4F46E5',
+      chapters: chapters,
     );
   }
 }
@@ -122,22 +118,51 @@ class ChapterDetail {
 
   factory ChapterDetail.fromJson(Map<String, dynamic> json) {
     final rawContent = json['content'];
-    List<String> contentLines = [];
-    if (rawContent is List) {
-      contentLines = rawContent.map((e) => e.toString()).toList();
-    } else if (rawContent is String) {
-      contentLines = [rawContent];
-    }
-
+    final content = rawContent is List
+        ? rawContent.map((item) => item.toString()).toList()
+        : rawContent is String
+        ? [rawContent]
+        : <String>[];
     return ChapterDetail(
       id: json['id'] as String? ?? '',
       storyId: json['storyId'] as String? ?? '',
       storyTitle: json['storyTitle'] as String? ?? 'Obra',
       position: (json['position'] as num?)?.toInt() ?? 1,
       title: json['title'] as String? ?? 'Capítulo',
-      content: contentLines,
+      content: content,
     );
   }
+}
+
+class ChapterComment {
+  final String id;
+  final String storyId;
+  final String chapterId;
+  final String authorName;
+  final String body;
+  final DateTime createdAt;
+  final int likes;
+
+  const ChapterComment({
+    required this.id,
+    required this.storyId,
+    required this.chapterId,
+    required this.authorName,
+    required this.body,
+    required this.createdAt,
+    required this.likes,
+  });
+
+  factory ChapterComment.fromJson(Map<String, dynamic> json) => ChapterComment(
+    id: json['id'] as String? ?? '',
+    storyId: json['storyId'] as String? ?? '',
+    chapterId: json['chapterId'] as String? ?? '',
+    authorName: json['authorName'] as String? ?? 'Invitado',
+    body: json['body'] as String? ?? '',
+    createdAt:
+        DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+    likes: (json['likes'] as num?)?.toInt() ?? 0,
+  );
 }
 
 class ReaderSettings {
@@ -147,7 +172,7 @@ class ReaderSettings {
 
   const ReaderSettings({
     this.themeMode = ReaderThemeMode.light,
-    this.fontSize = 18.0,
+    this.fontSize = 18,
     this.fontFamily = ReaderFontFamily.serif,
   });
 
@@ -155,11 +180,9 @@ class ReaderSettings {
     ReaderThemeMode? themeMode,
     double? fontSize,
     ReaderFontFamily? fontFamily,
-  }) {
-    return ReaderSettings(
-      themeMode: themeMode ?? this.themeMode,
-      fontSize: fontSize ?? this.fontSize,
-      fontFamily: fontFamily ?? this.fontFamily,
-    );
-  }
+  }) => ReaderSettings(
+    themeMode: themeMode ?? this.themeMode,
+    fontSize: fontSize ?? this.fontSize,
+    fontFamily: fontFamily ?? this.fontFamily,
+  );
 }

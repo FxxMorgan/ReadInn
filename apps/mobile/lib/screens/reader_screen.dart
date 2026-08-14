@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../models/story.dart';
+import '../providers/auth_provider.dart';
 import '../providers/story_providers.dart';
 import '../theme/app_theme.dart';
 
@@ -15,498 +15,527 @@ class ReaderScreen extends ConsumerWidget {
     required this.chapterId,
   });
 
+  void _openSettings(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => const _ReaderSettingsSheet(),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chapterParams = (storyId: storyId, chapterId: chapterId);
-    final chapterAsync = ref.watch(chapterDetailProvider(chapterParams));
-    final storyDetailAsync = ref.watch(storyDetailProvider(storyId));
+    final chapterAsync = ref.watch(
+      chapterDetailProvider((storyId: storyId, chapterId: chapterId)),
+    );
+    final commentsAsync = ref.watch(
+      chapterCommentsProvider((storyId: storyId, chapterId: chapterId)),
+    );
+    final auth = ref.watch(authProvider);
     final settings = ref.watch(readerSettingsProvider);
-    final settingsNotifier = ref.read(readerSettingsProvider.notifier);
-
-    final bgColor = AppTheme.getReaderBgColor(settings.themeMode);
+    final background = AppTheme.getReaderBgColor(settings.themeMode);
     final textColor = AppTheme.getReaderTextColor(settings.themeMode);
     final subtextColor = AppTheme.getReaderSubtextColor(settings.themeMode);
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: background,
       appBar: AppBar(
-        backgroundColor: bgColor,
+        backgroundColor: background,
         foregroundColor: textColor,
-        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/story/$storyId'),
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/story/$storyId'),
         ),
-        title: chapterAsync.when(
-          data: (chapter) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                chapter.storyTitle,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: textColor,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                'Capítulo ${chapter.position}: ${chapter.title}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: subtextColor,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-          loading: () => const Text('Cargando...'),
-          error: (err, stack) => const Text('Lector'),
+        title: const Text(
+          'Lectura',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.bookmark_border_rounded),
-            tooltip: 'Guardar marcador',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Marcador guardado en este capítulo')),
-              );
-            },
+            tooltip: 'Ajustes de lectura',
+            icon: const Icon(Icons.text_fields_rounded),
+            onPressed: () => _openSettings(context),
           ),
           IconButton(
-            icon: const Icon(Icons.tune_rounded),
-            tooltip: 'Ajustes del lector',
-            onPressed: () {
-              _showSettingsModal(context, settings, settingsNotifier);
-            },
-          ),
-        ],
-      ),
-      body: chapterAsync.when(
-        data: (chapter) {
-          final storyDetail = storyDetailAsync.asData?.value;
-          ChapterSummary? prevChapter;
-          ChapterSummary? nextChapter;
-
-          if (storyDetail != null && storyDetail.chapters.isNotEmpty) {
-            final currentIndex = storyDetail.chapters.indexWhere((c) => c.id == chapter.id);
-            if (currentIndex > 0) {
-              prevChapter = storyDetail.chapters[currentIndex - 1];
-            }
-            if (currentIndex >= 0 && currentIndex < storyDetail.chapters.length - 1) {
-              nextChapter = storyDetail.chapters[currentIndex + 1];
-            }
-          }
-
-          final paragraphStyle = AppTheme.getReaderTextStyle(
-            fontFamily: settings.fontFamily,
-            fontSize: settings.fontSize,
-            color: textColor,
-          );
-
-          return Column(
-            children: [
-              Expanded(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(vertical: 20.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              chapter.title,
-                              style: AppTheme.getReaderTextStyle(
-                                fontFamily: settings.fontFamily,
-                                fontSize: settings.fontSize * 1.4,
-                                color: textColor,
-                              ).copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 24),
-                            // Paragraphs with Stitch inline paragraph comment buttons
-                            ...List.generate(chapter.content.length, (index) {
-                              final paragraph = chapter.content[index];
-                              final commentCount = (index + 1) * 3 + 2; // Simulated paragraph comments
-
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 24.0),
-                                child: Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 36.0),
-                                      child: Text(
-                                        paragraph,
-                                        style: paragraphStyle,
-                                      ),
-                                    ),
-                                    // In-line speech bubble button (Stitch Feature)
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(12),
-                                        onTap: () {
-                                          _showParagraphCommentsModal(
-                                              context, paragraph, commentCount, textColor, bgColor);
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                          decoration: BoxDecoration(
-                                            color: ReadInnColors.primary.withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(
-                                                Icons.chat_bubble_outline_rounded,
-                                                size: 12,
-                                                color: ReadInnColors.primary,
-                                              ),
-                                              const SizedBox(width: 3),
-                                              Text(
-                                                '$commentCount',
-                                                style: const TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: ReadInnColors.primary,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                            const SizedBox(height: 32),
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            // Chapter Navigation Buttons
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                if (prevChapter != null)
-                                  OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: textColor,
-                                      side: BorderSide(color: subtextColor.withValues(alpha: 0.3)),
-                                    ),
-                                    icon: const Icon(Icons.arrow_back_ios, size: 14),
-                                    label: const Text('Anterior'),
-                                    onPressed: () {
-                                      context.go('/story/$storyId/read/${prevChapter!.id}');
-                                    },
-                                  )
-                                else
-                                  const SizedBox.shrink(),
-                                if (nextChapter != null)
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: ReadInnColors.primary,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    label: const Text('Siguiente'),
-                                    icon: const Icon(Icons.arrow_forward_ios, size: 14),
-                                    onPressed: () {
-                                      context.go('/story/$storyId/read/${nextChapter!.id}');
-                                    },
-                                  )
-                                else
-                                  OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: textColor,
-                                      side: BorderSide(color: subtextColor.withValues(alpha: 0.3)),
-                                    ),
-                                    icon: const Icon(Icons.check_circle_outline, size: 16),
-                                    label: const Text('Volver a la obra'),
-                                    onPressed: () {
-                                      context.go('/story/$storyId');
-                                    },
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 40),
-                          ],
+            tooltip: 'Más opciones',
+            icon: const Icon(Icons.more_horiz_rounded),
+            onPressed: () =>
+                showMenu<String>(
+                  context: context,
+                  position: const RelativeRect.fromLTRB(200, 70, 12, 0),
+                  items: const [
+                    PopupMenuItem(
+                      value: 'mark',
+                      child: Text('Marcar como leido'),
+                    ),
+                    PopupMenuItem(
+                      value: 'share',
+                      child: Text('Compartir capitulo'),
+                    ),
+                  ],
+                ).then((value) {
+                  if (value != null && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          value == 'mark'
+                              ? 'Capitulo marcado como leido.'
+                              : 'Enlace listo para compartir.',
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-        loading: () => const Center(
-          child: CircularProgressIndicator(),
-        ),
-        error: (err, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, color: textColor, size: 48),
-              const SizedBox(height: 12),
-              Text('Error al cargar el capítulo', style: TextStyle(color: textColor)),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () => ref.refresh(chapterDetailProvider(chapterParams)),
-                child: const Text('Reintentar'),
-              ),
-            ],
+                    );
+                  }
+                }),
+          ),
+        ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(3),
+          child: LinearProgressIndicator(
+            value: 0.42,
+            minHeight: 3,
+            backgroundColor: Colors.transparent,
+            color: ReadInnColors.primary,
           ),
         ),
       ),
-    );
-  }
-
-  void _showParagraphCommentsModal(
-    BuildContext context,
-    String paragraphSnippet,
-    int commentCount,
-    Color textColor,
-    Color bgColor,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: bgColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Comentarios del Párrafo ($commentCount)',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: textColor),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: ReadInnColors.primary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '"${paragraphSnippet.length > 90 ? "${paragraphSnippet.substring(0, 90)}..." : paragraphSnippet}"',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    color: textColor,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: ReadInnColors.primary,
-                  child: const Text('L', style: TextStyle(color: Colors.white, fontSize: 12)),
-                ),
-                title: const Text('Laura M.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                subtitle: const Text(
-                  '¡Esa descripción del mar me dio escalofríos! Excelente detalle.',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                decoration: InputDecoration(
-                  hintText: 'Añadir un comentario en este párrafo...',
-                  suffixIcon: const Icon(Icons.send, color: ReadInnColors.primary),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-                ),
-              ),
-            ],
+      body: chapterAsync.when(
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: textColor)),
+        error: (error, _) => Center(
+          child: Text(
+            'No pudimos cargar el capítulo: $error',
+            style: TextStyle(color: textColor),
           ),
-        );
-      },
-    );
-  }
-
-  void _showSettingsModal(
-    BuildContext context,
-    ReaderSettings settings,
-    ReaderSettingsNotifier notifier,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppTheme.getReaderBgColor(settings.themeMode),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Consumer(
-          builder: (context, ref, _) {
-            final currentSettings = ref.watch(readerSettingsProvider);
-            final textColor = AppTheme.getReaderTextColor(currentSettings.themeMode);
-            final subtextColor = AppTheme.getReaderSubtextColor(currentSettings.themeMode);
-
-            return Padding(
-              padding: const EdgeInsets.all(24.0),
+        ),
+        data: (chapter) => SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 28, 20, 42),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Personalizar Lector',
+                    chapter.storyTitle.toUpperCase(),
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
+                      color: subtextColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text('Tema visual', style: TextStyle(fontSize: 14, color: subtextColor)),
                   const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _themeChip(
-                        label: 'Claro',
-                        bgColor: ReadInnColors.surface,
-                        textColor: ReadInnColors.onSurface,
-                        isSelected: currentSettings.themeMode == ReaderThemeMode.light,
-                        onTap: () => notifier.setThemeMode(ReaderThemeMode.light),
-                      ),
-                      _themeChip(
-                        label: 'Sepia',
-                        bgColor: ReadInnColors.paperWarm,
-                        textColor: ReadInnColors.paperText,
-                        isSelected: currentSettings.themeMode == ReaderThemeMode.sepia,
-                        onTap: () => notifier.setThemeMode(ReaderThemeMode.sepia),
-                      ),
-                      _themeChip(
-                        label: 'Oscuro',
-                        bgColor: ReadInnColors.darkBg,
-                        textColor: ReadInnColors.darkText,
-                        isSelected: currentSettings.themeMode == ReaderThemeMode.dark,
-                        onTap: () => notifier.setThemeMode(ReaderThemeMode.dark),
-                      ),
-                      _themeChip(
-                        label: 'Noche',
-                        bgColor: ReadInnColors.nightBg,
-                        textColor: ReadInnColors.nightText,
-                        isSelected: currentSettings.themeMode == ReaderThemeMode.night,
-                        onTap: () => notifier.setThemeMode(ReaderThemeMode.night),
-                      ),
-                    ],
+                  Text(
+                    'Capítulo ${chapter.position}:\n${chapter.title}',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 30,
+                      height: 1.12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Tamaño de letra', style: TextStyle(fontSize: 14, color: subtextColor)),
-                      Text('${currentSettings.fontSize.toInt()} pt',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: textColor)),
-                    ],
+                  const SizedBox(height: 10),
+                  Text(
+                    '14 min de lectura',
+                    style: TextStyle(color: subtextColor, fontSize: 12),
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.remove, color: textColor),
-                        onPressed: () => notifier.setFontSize(currentSettings.fontSize - 1),
-                      ),
-                      Expanded(
-                        child: Slider(
-                          value: currentSettings.fontSize,
-                          min: 14,
-                          max: 28,
-                          divisions: 14,
-                          activeColor: ReadInnColors.primary,
-                          onChanged: (val) => notifier.setFontSize(val),
+                  const SizedBox(height: 30),
+                  ...chapter.content.map(
+                    (paragraph) => Padding(
+                      padding: const EdgeInsets.only(bottom: 22),
+                      child: Text(
+                        paragraph,
+                        style: AppTheme.getReaderTextStyle(
+                          fontFamily: settings.fontFamily,
+                          fontSize: settings.fontSize,
+                          color: textColor,
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.add, color: textColor),
-                        onPressed: () => notifier.setFontSize(currentSettings.fontSize + 1),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Divider(color: subtextColor.withValues(alpha: 0.25)),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final liked = await ref
+                                .read(apiServiceProvider)
+                                .toggleStoryLike(storyId, token: auth.token);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    liked
+                                        ? 'Te gusta esta obra.'
+                                        : 'Quitaste tu me gusta.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.favorite_border_rounded),
+                          label: const Text('Me gusta'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final saved = await ref
+                                .read(apiServiceProvider)
+                                .toggleLibrary(storyId, token: auth.token);
+                            ref.invalidate(libraryProvider);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    saved
+                                        ? 'Guardado en tu biblioteca.'
+                                        : 'Quitado de tu biblioteca.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.bookmark_border_rounded),
+                          label: const Text('Guardar'),
+                        ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 34),
+                  Text(
+                    'Comentarios',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Comparte una idea sobre este capítulo.',
+                    style: TextStyle(color: subtextColor, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
-                  Text('Tipografía', style: TextStyle(fontSize: 14, color: subtextColor)),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      ChoiceChip(
-                        label: const Text('Serif'),
-                        selected: currentSettings.fontFamily == ReaderFontFamily.serif,
-                        onSelected: (_) => notifier.setFontFamily(ReaderFontFamily.serif),
-                      ),
-                      ChoiceChip(
-                        label: const Text('Sans-Serif'),
-                        selected: currentSettings.fontFamily == ReaderFontFamily.sans,
-                        onSelected: (_) => notifier.setFontFamily(ReaderFontFamily.sans),
-                      ),
-                      ChoiceChip(
-                        label: const Text('Monospace'),
-                        selected: currentSettings.fontFamily == ReaderFontFamily.mono,
-                        onSelected: (_) => notifier.setFontFamily(ReaderFontFamily.mono),
-                      ),
-                    ],
+                  _CommentComposer(
+                    textColor: textColor,
+                    subtextColor: subtextColor,
+                    onSubmit: (body) async {
+                      await ref
+                          .read(apiServiceProvider)
+                          .addComment(
+                            storyId: storyId,
+                            chapterId: chapterId,
+                            body: body,
+                            authorName: auth.user?.displayName ?? 'Invitado',
+                            token: auth.token,
+                          );
+                      ref.invalidate(
+                        chapterCommentsProvider((
+                          storyId: storyId,
+                          chapterId: chapterId,
+                        )),
+                      );
+                    },
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
+                  commentsAsync.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (error, _) => Text(
+                      'No pudimos cargar los comentarios: $error',
+                      style: TextStyle(color: subtextColor),
+                    ),
+                    data: (comments) => Column(
+                      children: comments
+                          .map(
+                            (comment) => _Comment(
+                              name: comment.authorName,
+                              text: comment.body,
+                              textColor: textColor,
+                              subtextColor: subtextColor,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => context.go('/story/$storyId'),
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                      label: const Text('Siguiente capítulo'),
+                    ),
+                  ),
                 ],
               ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _themeChip({
-    required String label,
-    required Color bgColor,
-    required Color textColor,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? ReadInnColors.primary : Colors.grey.withValues(alpha: 0.3),
-            width: isSelected ? 2 : 1,
+            ),
           ),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: textColor,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+      floatingActionButton: FloatingActionButton.small(
+        tooltip: 'Ajustes de lectura',
+        backgroundColor: ReadInnColors.primary,
+        foregroundColor: ReadInnColors.ink,
+        onPressed: () => _openSettings(context),
+        child: const Icon(Icons.tune_rounded),
+      ),
+    );
+  }
+}
+
+class _CommentComposer extends StatefulWidget {
+  final Color textColor;
+  final Color subtextColor;
+  final Future<void> Function(String body) onSubmit;
+
+  const _CommentComposer({
+    required this.textColor,
+    required this.subtextColor,
+    required this.onSubmit,
+  });
+
+  @override
+  State<_CommentComposer> createState() => _CommentComposerState();
+}
+
+class _CommentComposerState extends State<_CommentComposer> {
+  final _controller = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final body = _controller.text.trim();
+    if (body.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.onSubmit(body);
+      _controller.clear();
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: widget.textColor.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: widget.subtextColor.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: ReadInnColors.softOrange,
+            child: Icon(Icons.person, size: 17, color: widget.textColor),
           ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              textInputAction: TextInputAction.send,
+              minLines: 1,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Escribe un comentario...',
+                hintStyle: TextStyle(color: widget.subtextColor),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+              onSubmitted: (_) => _send(),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Publicar comentario',
+            onPressed: _sending ? null : _send,
+            icon: _sending
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(
+                    Icons.send_rounded,
+                    color: ReadInnColors.primaryDeep,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Comment extends StatelessWidget {
+  final String name;
+  final String text;
+  final Color textColor;
+  final Color subtextColor;
+
+  const _Comment({
+    required this.name,
+    required this.text,
+    required this.textColor,
+    required this.subtextColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: ReadInnColors.indigo.withValues(alpha: 0.16),
+            child: Text(
+              name.substring(0, 1),
+              style: const TextStyle(
+                color: ReadInnColors.indigo,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: subtextColor,
+                    height: 1.45,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReaderSettingsSheet extends ConsumerWidget {
+  const _ReaderSettingsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(readerSettingsProvider);
+    final notifier = ref.read(readerSettingsProvider.notifier);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Ajustes de lectura',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 20),
+            const Text('Tamaño', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton.outlined(
+                  onPressed: () => notifier.setFontSize(settings.fontSize - 1),
+                  icon: const Icon(Icons.remove),
+                ),
+                Expanded(
+                  child: Slider(
+                    value: settings.fontSize,
+                    min: 14,
+                    max: 28,
+                    divisions: 14,
+                    label: settings.fontSize.round().toString(),
+                    onChanged: notifier.setFontSize,
+                  ),
+                ),
+                IconButton.outlined(
+                  onPressed: () => notifier.setFontSize(settings.fontSize + 1),
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Tipografía',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<ReaderFontFamily>(
+              segments: const [
+                ButtonSegment(
+                  value: ReaderFontFamily.serif,
+                  label: Text('Serif'),
+                ),
+                ButtonSegment(
+                  value: ReaderFontFamily.sans,
+                  label: Text('Sans'),
+                ),
+                ButtonSegment(
+                  value: ReaderFontFamily.mono,
+                  label: Text('Mono'),
+                ),
+              ],
+              selected: {settings.fontFamily},
+              onSelectionChanged: (selection) =>
+                  notifier.setFontFamily(selection.first),
+            ),
+            const SizedBox(height: 20),
+            const Text('Tema', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              children: ReaderThemeMode.values.map((mode) {
+                final selected = settings.themeMode == mode;
+                return InkWell(
+                  onTap: () => notifier.setThemeMode(mode),
+                  borderRadius: BorderRadius.circular(24),
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppTheme.getReaderBgColor(mode),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: selected
+                            ? ReadInnColors.primaryDeep
+                            : ReadInnColors.border,
+                        width: selected ? 3 : 1,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ),
       ),
     );

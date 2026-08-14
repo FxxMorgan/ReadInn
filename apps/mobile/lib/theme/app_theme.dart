@@ -2,47 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class ReadInnColors {
-  // Stitch Brand Palette (Warm Orange / Amber & Editorial Tones)
-  static const Color primary = Color(0xFF855300); // Primary Warm Amber
-  static const Color primaryLight = Color(0xFFF59E0B);
-  static const Color primaryContainer = Color(0xFFFFDDB8);
-  static const Color onPrimaryContainer = Color(0xFF613B00);
-  
-  static const Color indigoHighlight = Color(0xFF6366F1); // Tertiary accent
-  static const Color accentGold = Color(0xFFF59E0B);
-
-  // Surface & Background
-  static const Color surface = Color(0xFFF7F9FB);
-  static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const Color surfaceContainerLow = Color(0xFFF2F4F6);
-  static const Color surfaceContainer = Color(0xFFECEEF0);
-  static const Color surfaceContainerHigh = Color(0xFFE6E8EA);
-  static const Color surfaceContainerHighest = Color(0xFFE0E3E5);
-
-  // Text & Outline
-  static const Color onSurface = Color(0xFF191C1E);
-  static const Color onSurfaceVariant = Color(0xFF534434);
-  static const Color outline = Color(0xFF867461);
-  static const Color outlineVariant = Color(0xFFD8C3AD);
-
-  // Paper / Reader Themes
-  static const Color paperWarm = Color(0xFFFBF0D9);
-  static const Color paperText = Color(0xFF432818);
-  
-  static const Color darkBg = Color(0xFF0F172A);
-  static const Color darkSurface = Color(0xFF1E293B);
-  static const Color darkText = Color(0xFFF8FAFC);
-  static const Color darkSubtext = Color(0xFF94A3B8);
-  static const Color darkBorder = Color(0xFF334155);
-
-  static const Color nightBg = Color(0xFF000000);
-  static const Color nightText = Color(0xFFE0E0E0);
+  static const primary = Color(0xFFF97316);
+  static const primaryDeep = Color(0xFFC2410C);
+  static const indigo = primaryDeep;
+  static const ink = Color(0xFF1C1917);
+  static const muted = Color(0xFF78716C);
+  static const onSurfaceVariant = muted;
+  static const background = Color(0xFFFFFDFC);
+  static const surface = Colors.white;
+  static const border = Color(0xFFE7E5E4);
+  static const softOrange = Color(0xFFFFEDD5);
+  static const softIndigo = softOrange;
+  static const paperWarm = Color(0xFFFFF7ED);
+  static const paperText = Color(0xFF432818);
+  static const darkBg = Color(0xFF0F172A);
+  static const darkSurface = Color(0xFF1E293B);
+  static const darkText = Color(0xFFF8FAFC);
+  static const darkMuted = Color(0xFF94A3B8);
 
   static BoxShadow get bookShadow => BoxShadow(
-        color: Colors.black.withValues(alpha: 0.12),
-        blurRadius: 12,
-        offset: const Offset(4, 4),
-      );
+    color: const Color(0xFF0F172A).withValues(alpha: 0.16),
+    blurRadius: 16,
+    offset: const Offset(0, 8),
+  );
 }
 
 enum ReaderThemeMode { light, sepia, dark, night }
@@ -51,87 +33,114 @@ enum ReaderFontFamily { serif, sans, mono }
 
 class AppTheme {
   static ThemeData get lightTheme {
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: ReadInnColors.primary,
+          brightness: Brightness.light,
+          surface: ReadInnColors.background,
+        ).copyWith(
+          primary: ReadInnColors.primaryDeep,
+          onPrimary: Colors.white,
+          secondary: ReadInnColors.primary,
+          onSecondary: Colors.white,
+          surface: ReadInnColors.background,
+          onSurface: ReadInnColors.ink,
+          outline: ReadInnColors.border,
+        );
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      colorScheme: const ColorScheme.light(
-        primary: ReadInnColors.primary,
-        onPrimary: Colors.white,
-        primaryContainer: ReadInnColors.primaryContainer,
-        secondary: ReadInnColors.indigoHighlight,
-        surface: ReadInnColors.surface,
-        onSurface: ReadInnColors.onSurface,
-        onSurfaceVariant: ReadInnColors.onSurfaceVariant,
-        outline: ReadInnColors.outlineVariant,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: ReadInnColors.background,
+      textTheme: GoogleFonts.interTextTheme().apply(
+        bodyColor: ReadInnColors.ink,
+        displayColor: ReadInnColors.ink,
       ),
-      scaffoldBackgroundColor: ReadInnColors.surface,
       appBarTheme: const AppBarTheme(
         backgroundColor: ReadInnColors.surface,
-        foregroundColor: ReadInnColors.onSurface,
+        foregroundColor: ReadInnColors.ink,
         elevation: 0,
-        scrolledUnderElevation: 1,
+        scrolledUnderElevation: 0,
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: ReadInnColors.surfaceContainerLowest,
+        color: ReadInnColors.surface,
         elevation: 0,
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Color(0x33D8C3AD)),
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: ReadInnColors.border),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: ReadInnColors.surface,
+        hintStyle: const TextStyle(color: ReadInnColors.muted),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: ReadInnColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: ReadInnColors.border),
+        ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(8)),
+          borderSide: BorderSide(color: ReadInnColors.primaryDeep, width: 1.5),
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: ReadInnColors.surfaceContainerLowest,
-        selectedColor: ReadInnColors.primary,
-        secondarySelectedColor: ReadInnColors.primary,
-        labelStyle: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        backgroundColor: const Color(0xFFF5F5F4),
+        selectedColor: ReadInnColors.primaryDeep,
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        secondaryLabelStyle: const TextStyle(color: Colors.white),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        side: const BorderSide(color: Color(0x33D8C3AD)),
+        side: BorderSide.none,
       ),
-      textTheme: GoogleFonts.interTextTheme(),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: ReadInnColors.surface,
+        indicatorColor: ReadInnColors.softOrange,
+        labelTextStyle: WidgetStateProperty.all(
+          const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: ReadInnColors.border,
+        space: 1,
+      ),
     );
   }
 
   static ThemeData get darkTheme {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: ReadInnColors.primary,
+      brightness: Brightness.dark,
+    ).copyWith(primary: ReadInnColors.primary, secondary: ReadInnColors.indigo);
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: const ColorScheme.dark(
-        primary: ReadInnColors.primaryLight,
-        secondary: ReadInnColors.indigoHighlight,
-        surface: ReadInnColors.darkSurface,
-        onSurface: ReadInnColors.darkText,
-      ),
+      colorScheme: scheme,
       scaffoldBackgroundColor: ReadInnColors.darkBg,
+      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       appBarTheme: const AppBarTheme(
-        backgroundColor: ReadInnColors.darkSurface,
+        backgroundColor: ReadInnColors.darkBg,
         foregroundColor: ReadInnColors.darkText,
         elevation: 0,
-        scrolledUnderElevation: 1,
-        centerTitle: false,
       ),
       cardTheme: CardThemeData(
         color: ReadInnColors.darkSurface,
         elevation: 0,
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: ReadInnColors.darkBorder),
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: Color(0xFF334155)),
         ),
       ),
-      chipTheme: ChipThemeData(
-        backgroundColor: ReadInnColors.darkSurface,
-        selectedColor: ReadInnColors.primaryLight,
-        secondarySelectedColor: ReadInnColors.primaryLight,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        side: const BorderSide(color: ReadInnColors.darkBorder),
-      ),
-      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
     );
   }
 
@@ -139,60 +148,57 @@ class AppTheme {
     required ReaderFontFamily fontFamily,
     required double fontSize,
     required Color color,
-    double lineHeight = 1.85,
+    double lineHeight = 1.8,
   }) {
-    final baseStyle = TextStyle(
+    final base = TextStyle(
       fontSize: fontSize,
       color: color,
       height: lineHeight,
     );
-
     switch (fontFamily) {
       case ReaderFontFamily.serif:
-        return GoogleFonts.merriweather(textStyle: baseStyle);
+        return GoogleFonts.merriweather(textStyle: base);
       case ReaderFontFamily.sans:
-        return GoogleFonts.inter(textStyle: baseStyle);
+        return GoogleFonts.inter(textStyle: base);
       case ReaderFontFamily.mono:
-        return GoogleFonts.jetBrainsMono(textStyle: baseStyle);
+        return GoogleFonts.jetBrainsMono(textStyle: base);
     }
   }
 
   static Color getReaderBgColor(ReaderThemeMode mode) {
     switch (mode) {
       case ReaderThemeMode.light:
-        return ReadInnColors.surface;
+        return ReadInnColors.background;
       case ReaderThemeMode.sepia:
         return ReadInnColors.paperWarm;
       case ReaderThemeMode.dark:
         return ReadInnColors.darkBg;
       case ReaderThemeMode.night:
-        return ReadInnColors.nightBg;
+        return Colors.black;
     }
   }
 
   static Color getReaderTextColor(ReaderThemeMode mode) {
     switch (mode) {
       case ReaderThemeMode.light:
-        return ReadInnColors.onSurface;
+        return ReadInnColors.ink;
       case ReaderThemeMode.sepia:
         return ReadInnColors.paperText;
       case ReaderThemeMode.dark:
-        return ReadInnColors.darkText;
       case ReaderThemeMode.night:
-        return ReadInnColors.nightText;
+        return ReadInnColors.darkText;
     }
   }
 
   static Color getReaderSubtextColor(ReaderThemeMode mode) {
     switch (mode) {
       case ReaderThemeMode.light:
-        return ReadInnColors.onSurfaceVariant;
+        return ReadInnColors.muted;
       case ReaderThemeMode.sepia:
-        return const Color(0xFF6F4E37);
+        return const Color(0xFF7A5638);
       case ReaderThemeMode.dark:
-        return ReadInnColors.darkSubtext;
       case ReaderThemeMode.night:
-        return Colors.grey;
+        return ReadInnColors.darkMuted;
     }
   }
 }

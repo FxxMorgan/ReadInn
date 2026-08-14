@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
@@ -8,6 +9,11 @@ const progressSchema = z.object({
   chapterId: z.string(),
   progressPercentage: z.number().min(0).max(100),
   lastPosition: z.number().optional(),
+});
+
+const commentSchema = z.object({
+  body: z.string().trim().min(1).max(1000),
+  authorName: z.string().trim().min(1).max(80).optional(),
 });
 
 // In-memory fallback state for library and reading progress
@@ -21,7 +27,84 @@ const mockProgress: Record<string, { chapterId: string; progressPercentage: numb
   },
 };
 
+type MockComment = {
+  id: string;
+  storyId: string;
+  chapterId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+  likes: number;
+};
+
+const mockComments: MockComment[] = [
+  {
+    id: 'comment-lighthouse-1',
+    storyId: 'story-lighthouse',
+    chapterId: 'chapter-lighthouse-1',
+    authorId: 'user-reader-1',
+    authorName: 'Lucía M.',
+    body: 'La imagen del faro apagado se queda contigo. Muy buen inicio.',
+    createdAt: new Date().toISOString(),
+    likes: 4,
+  },
+  {
+    id: 'comment-lighthouse-2',
+    storyId: 'story-lighthouse',
+    chapterId: 'chapter-lighthouse-1',
+    authorId: 'user-reader-2',
+    authorName: 'Nico Rojas',
+    body: 'El mapa dentro de la caja de fósforos es un detalle precioso.',
+    createdAt: new Date().toISOString(),
+    likes: 2,
+  },
+];
+
+const mockLikes = new Set<string>();
+
 export function registerReaderRoutes(app: FastifyInstance): void {
+  // Chapter comments. These remain available when the database is offline and
+  // use the same response shape as the persistent implementation will use.
+  app.get<{ Params: { storyId: string; chapterId: string } }>(
+    '/v1/stories/:storyId/chapters/:chapterId/comments',
+    async (request) => {
+      const { storyId, chapterId } = request.params;
+      return {
+        data: mockComments
+          .filter((comment) => comment.storyId === storyId && comment.chapterId === chapterId)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      };
+    }
+  );
+
+  app.post<{ Params: { storyId: string; chapterId: string } }>(
+    '/v1/stories/:storyId/chapters/:chapterId/comments',
+    async (request, reply) => {
+      const body = commentSchema.parse(request.body);
+      const comment: MockComment = {
+        id: `comment-${crypto.randomUUID()}`,
+        storyId: request.params.storyId,
+        chapterId: request.params.chapterId,
+        authorId: 'user-current',
+        authorName: body.authorName ?? 'Invitado',
+        body: body.body,
+        createdAt: new Date().toISOString(),
+        likes: 0,
+      };
+      mockComments.push(comment);
+      return reply.status(201).send({ data: comment });
+    }
+  );
+
+  app.post<{ Params: { storyId: string } }>('/v1/stories/:storyId/like', async (request) => {
+    const key = `user-current:${request.params.storyId}`;
+    const liked = mockLikes.has(key);
+    if (liked) mockLikes.delete(key);
+    else mockLikes.add(key);
+    return { data: { storyId: request.params.storyId, liked: !liked } };
+  });
+
   // Toggle story in personal library
   app.post<{ Params: { storyId: string } }>('/v1/library/:storyId', async (request) => {
     const { storyId } = request.params;
@@ -37,17 +120,10 @@ export function registerReaderRoutes(app: FastifyInstance): void {
       return { data: { saved: !isSaved, storyId } };
     }
 
-    const defaultUserId = 'user-marina-1';
-    const existing = await prisma.userProfile.findUnique({
-      where: { userId: defaultUserId },
-    });
-
-    if (existing) {
-      if (mockLibraryIds.has(storyId)) {
-        mockLibraryIds.delete(storyId);
-      } else {
-        mockLibraryIds.add(storyId);
-      }
+    if (mockLibraryIds.has(storyId)) {
+      mockLibraryIds.delete(storyId);
+    } else {
+      mockLibraryIds.add(storyId);
     }
 
     return { data: { saved: mockLibraryIds.has(storyId), storyId } };

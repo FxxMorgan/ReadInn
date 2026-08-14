@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { checkDatabaseConnection, prisma } from '../../shared/db.js';
 import { writerRepository } from './writer-repository.js';
 
 const createStorySchema = z.object({
@@ -16,9 +17,15 @@ const createChapterSchema = z.object({
 });
 
 export function registerWriterRoutes(app: FastifyInstance): void {
+  const resolveAuthorId = async () => {
+    if (!(await checkDatabaseConnection())) return 'user-marina-1';
+    const author = await prisma.user.findFirst({ orderBy: { createdAt: 'asc' } });
+    return author?.id ?? 'user-marina-1';
+  };
+
   // Get author's stories
   app.get('/v1/me/stories', async () => {
-    const defaultAuthorId = 'user-marina-1';
+    const defaultAuthorId = await resolveAuthorId();
     const stories = await writerRepository.getUserStories(defaultAuthorId);
     return { data: stories };
   });
@@ -26,7 +33,7 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   // Create new story
   app.post('/v1/stories', async (request, reply) => {
     const body = createStorySchema.parse(request.body);
-    const defaultAuthorId = 'user-marina-1';
+    const defaultAuthorId = await resolveAuthorId();
 
     const story = await writerRepository.createStory({
       authorId: defaultAuthorId,

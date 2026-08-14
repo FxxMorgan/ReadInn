@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/story.dart';
+import 'auth_provider.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
@@ -18,8 +19,10 @@ final storiesProvider = FutureProvider<List<StorySummary>>((ref) async {
   return apiService.fetchStories(query: query, genre: genre);
 });
 
-final storyDetailProvider =
-    FutureProvider.family<StoryDetail, String>((ref, storyId) async {
+final storyDetailProvider = FutureProvider.family<StoryDetail, String>((
+  ref,
+  storyId,
+) async {
   final apiService = ref.watch(apiServiceProvider);
   return apiService.fetchStoryDetail(storyId);
 });
@@ -28,8 +31,20 @@ typedef ChapterParams = ({String storyId, String chapterId});
 
 final chapterDetailProvider =
     FutureProvider.family<ChapterDetail, ChapterParams>((ref, params) async {
-  final apiService = ref.watch(apiServiceProvider);
-  return apiService.fetchChapterDetail(params.storyId, params.chapterId);
+      final apiService = ref.watch(apiServiceProvider);
+      return apiService.fetchChapterDetail(params.storyId, params.chapterId);
+    });
+
+final chapterCommentsProvider =
+    FutureProvider.family<List<ChapterComment>, ChapterParams>((ref, params) {
+      return ref
+          .watch(apiServiceProvider)
+          .fetchComments(params.storyId, params.chapterId);
+    });
+
+final libraryProvider = FutureProvider<List<StorySummary>>((ref) {
+  final token = ref.watch(authProvider.select((auth) => auth.token));
+  return ref.watch(apiServiceProvider).fetchLibrary(token: token);
 });
 
 class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
@@ -87,5 +102,5 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
 
 final readerSettingsProvider =
     StateNotifierProvider<ReaderSettingsNotifier, ReaderSettings>((ref) {
-  return ReaderSettingsNotifier();
-});
+      return ReaderSettingsNotifier();
+    });

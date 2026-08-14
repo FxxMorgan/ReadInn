@@ -113,16 +113,18 @@ export function registerAuthRoutes(app: FastifyInstance): void {
   app.post('/v1/auth/login', async (request) => {
     const isDbConnected = await checkDatabaseConnection();
     if (!isDbConnected) {
+      const body = loginSchema.parse(request.body);
+      const username = body.email.split('@')[0] || 'lector';
       return {
         data: {
           user: {
-            id: 'user-marina-1',
-            email: 'marina@readinn.app',
-            username: 'marina-solis',
-            displayName: 'Marina Solís',
+            id: `user-${username}`,
+            email: body.email,
+            username,
+            displayName: username,
           },
-          token: 'mock-jwt-token-readinn-marina',
-          refreshToken: 'mock-refresh-token-marina',
+          token: `mock-jwt-token-${username}`,
+          refreshToken: `mock-refresh-token-${username}`,
         },
       };
     }

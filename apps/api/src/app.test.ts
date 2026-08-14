@@ -53,4 +53,25 @@ describe('ReadInn API', () => {
     expect(missingBody.error.code).toBe('CHAPTER_NOT_FOUND');
     await app.close();
   });
+
+  it('lists and creates chapter comments', async () => {
+    const app = await buildApp(config);
+    const createResponse = await app.inject({
+      method: 'POST',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+      payload: { body: 'El mapa tiene una atmosfera increible.', authorName: 'Lector' },
+    });
+    const listResponse = await app.inject({
+      method: 'GET',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+    });
+
+    expect(createResponse.statusCode).toBe(201);
+    expect(createResponse.json<{ data: { body: string } }>().data.body).toBe(
+      'El mapa tiene una atmosfera increible.'
+    );
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.json<{ data: unknown[] }>().data.length).toBeGreaterThan(0);
+    await app.close();
+  });
 });

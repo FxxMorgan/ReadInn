@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ReadInn - Explorar</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Merriweather:wght@400;700&amp;family=JetBrains+Mono&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-primary-fixed": "#2a1700",
+                "primary-container": "#f59e0b",
+                "surface": "#f7f9fb",
+                "on-primary": "#ffffff",
+                "secondary-fixed": "#d5e3fd",
+                "inverse-surface": "#2d3133",
+                "paper-text": "#432818",
+                "on-primary-container": "#613b00",
+                "on-tertiary-fixed-variant": "#3323cc",
+                "outline-variant": "#d8c3ad",
+                "on-background": "#191c1e",
+                "on-secondary-fixed-variant": "#3a485c",
+                "on-primary-fixed-variant": "#653e00",
+                "background": "#f7f9fb",
+                "surface-container-low": "#f2f4f6",
+                "inverse-on-surface": "#eff1f3",
+                "surface-container-highest": "#e0e3e5",
+                "tertiary-container": "#aaa8ff",
+                "surface-container-high": "#e6e8ea",
+                "on-surface": "#191c1e",
+                "on-error": "#ffffff",
+                "primary-fixed": "#ffddb8",
+                "indigo-highlight": "#6366F1",
+                "secondary-fixed-dim": "#b9c7e0",
+                "surface-container-lowest": "#ffffff",
+                "on-secondary-fixed": "#0d1c2f",
+                "outline": "#867461",
+                "inverse-primary": "#ffb95f",
+                "tertiary": "#4d44e3",
+                "secondary-container": "#d5e3fd",
+                "error": "#ba1a1a",
+                "on-error-container": "#93000a",
+                "on-tertiary-container": "#2f1dc9",
+                "on-secondary-container": "#57657b",
+                "paper-warm": "#FBF0D9",
+                "surface-bright": "#f7f9fb",
+                "surface-dim": "#d8dadc",
+                "tertiary-fixed": "#e2dfff",
+                "surface-tint": "#855300",
+                "primary": "#855300",
+                "surface-container": "#eceef0",
+                "on-tertiary": "#ffffff",
+                "on-tertiary-fixed": "#0f0069",
+                "surface-variant": "#e0e3e5",
+                "on-surface-variant": "#534434",
+                "error-container": "#ffdad6",
+                "secondary": "#515f74",
+                "primary-fixed-dim": "#ffb95f",
+                "tertiary-fixed-dim": "#c3c0ff",
+                "on-secondary": "#ffffff"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "stack-md": "1.5rem",
+                "margin-mobile": "1rem",
+                "max-width-content": "1280px",
+                "stack-xs": "0.25rem",
+                "gutter": "1.5rem",
+                "max-width-reader": "720px",
+                "margin-desktop": "3rem",
+                "stack-sm": "0.75rem",
+                "stack-lg": "3rem"
+        },
+        "fontFamily": {
+                "mono-reader": [
+                        "JetBrains Mono"
+                ],
+                "headline-lg": [
+                        "Inter"
+                ],
+                "label-caps": [
+                        "Inter"
+                ],
+                "headline-xl": [
+                        "Inter"
+                ],
+                "headline-md": [
+                        "Inter"
+                ],
+                "ui-body": [
+                        "Inter"
+                ],
+                "reader-body": [
+                        "Merriweather"
+                ],
+                "headline-lg-mobile": [
+                        "Inter"
+                ],
+                "ui-body-sm": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "mono-reader": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "40px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "label-caps": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.06em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-xl": [
+                        "48px",
+                        {
+                                "lineHeight": "56px",
+                                "letterSpacing": "-0.03em",
+                                "fontWeight": "800"
+                        }
+                ],
+                "headline-md": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "ui-body": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "reader-body": [
+                        "19px",
+                        {
+                                "lineHeight": "1.85",
+                                "letterSpacing": "0.01em",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "28px",
+                        {
+                                "lineHeight": "34px",
+                                "fontWeight": "700"
+                        }
+                ],
+                "ui-body-sm": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        .book-shadow {
+            box-shadow: -2px 0 0px rgba(0,0,0,0.05), 4px 4px 12px rgba(0,0,0,0.1);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-ui-body min-h-screen pb-24 md:pb-0 pt-16">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/90 backdrop-blur-md shadow-sm">
+<div class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 w-full max-w-max-width-content mx-auto">
+<div class="flex items-center gap-4">
+<button aria-label="Menu" class="md:hidden text-primary hover:text-primary transition-colors duration-200 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg tracking-tight text-primary">ReadInn</h1>
+</div>
+<div class="hidden md:flex items-center gap-6 h-full">
+<a class="h-full flex items-center text-primary font-bold border-b-2 border-primary hover:text-primary transition-colors duration-200" href="#">Explorar</a>
+<a class="h-full flex items-center text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Biblioteca</a>
+<a class="h-full flex items-center text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Escribir</a>
+</div>
+<div class="flex items-center gap-4">
+<button aria-label="Search" class="hidden md:flex text-on-surface-variant hover:text-primary transition-colors duration-200">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button aria-label="User profile avatar" class="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant/20 hover:border-primary transition-colors">
+<img alt="Avatar" class="w-full h-full object-cover" data-alt="A small circular avatar placeholder showing a minimalist, abstract illustration in subtle pastel tones of blue and indigo. The design is clean and modern, suitable for a sophisticated editorial platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZNOhOyezbaQfPRtkBRA6G1uZkEDq5YDomYgEMjcwOebKKEUV396lz2Au_2KKToow7XW4uj-JDtKxX7o4vbVhPUSX0aB3i_25feDUumz5p1uXiaYdLpnNrOUNFopHU7LYn_HPOxMqKpiDFZhe-wUGaXs9wMUiO6QwQf8zFEicdN-665DLqxj7yxu7BxoQSBEF8niwLs5-HMyujUNifsI94vONGaSJ8Z2Cw7rrZPsr58aNU8b0Cbpw0"/>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="max-w-max-width-content mx-auto px-margin-mobile md:px-margin-desktop py-stack-lg">
+<!-- Search & Filter Section -->
+<section class="mb-stack-lg">
+<div class="relative w-full max-w-2xl mx-auto md:mx-0 mb-stack-md md:hidden">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-symbols-outlined text-outline">search</span>
+</div>
+<input class="block w-full pl-10 pr-3 py-3 border border-outline-variant/30 rounded-full bg-surface-container-lowest focus:ring-primary focus:border-primary sm:text-sm font-ui-body shadow-sm" placeholder="Buscar historias, autores..." type="text"/>
+</div>
+<div class="flex overflow-x-auto hide-scrollbar gap-3 pb-2 -mx-margin-mobile px-margin-mobile md:mx-0 md:px-0">
+<button class="whitespace-nowrap px-4 py-2 rounded-full font-label-caps text-label-caps bg-primary text-on-primary shadow-sm hover:bg-primary-container transition-colors">Todo</button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full font-label-caps text-label-caps bg-surface-container-lowest text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low transition-colors">Misterio</button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full font-label-caps text-label-caps bg-surface-container-lowest text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low transition-colors">Fantasía</button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full font-label-caps text-label-caps bg-surface-container-lowest text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low transition-colors">Ciencia Ficción</button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full font-label-caps text-label-caps bg-surface-container-lowest text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low transition-colors">Terror</button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full font-label-caps text-label-caps bg-surface-container-lowest text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low transition-colors">Romance</button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full font-label-caps text-label-caps bg-surface-container-lowest text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low transition-colors">Histórica</button>
+</div>
+</section>
+<!-- Stories Grid -->
+<section>
+<div class="flex items-center justify-between mb-stack-md">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-md md:text-headline-md text-on-surface">Tendencias</h2>
+<a class="font-ui-body-sm text-ui-body-sm text-primary hover:text-primary-container transition-colors flex items-center gap-1" href="#">Ver todo <span class="material-symbols-outlined text-[16px]">arrow_forward</span></a>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-8">
+<!-- Card 1 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="w-full aspect-[2/3] rounded-lg overflow-hidden mb-stack-sm book-shadow bg-surface-container relative">
+<img alt="Book Cover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A compelling book cover design for a mystery novel. The cover features a stark, high-contrast silhouette of a lone figure on a foggy city street at night, illuminated by a single streetlamp. The color palette is dominated by deep indigo blues and cool grays, creating a tense, atmospheric mood suitable for a modern fiction platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjiM0l_KNPBmKS7H6h_hNga4tLZtk3MD0LA_EkX-ZcTFiQG9PKnyYSdL7yXVAk5e5A0lPVnwm3as12RatFazMrUez1oeONVEsBp08OH7IwR70iZ0ihu98cvLoUaSH-ng3qElhqcylpW0Xcl9HjoQmVGJ1pcwdEJ7PSuHHzuZSN9xhBchNmkc1i5VZHWm3Dg8YFY3FsOl-5rBDqWScvmejz9x5X11kpYgvXtmqsRJt_1MhlD9ajimm_"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+<span class="font-label-caps text-label-caps text-on-primary bg-primary/90 px-2 py-1 rounded backdrop-blur-sm">Leer</span>
+</div>
+</div>
+<div class="flex flex-col">
+<h3 class="font-ui-body text-ui-body font-semibold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">The Echoes of Silence</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1 truncate">E.R. Vance</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="flex items-center text-primary-container">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant ml-1">4.8</span>
+</div>
+<span class="text-outline-variant text-[12px]">•</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant">24 Cap.</span>
+</div>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="w-full aspect-[2/3] rounded-lg overflow-hidden mb-stack-sm book-shadow bg-surface-container relative">
+<img alt="Book Cover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A fantasy book cover illustration depicting a glowing, crystalline structure floating above a dark, serene forest. The lighting is ethereal and soft, using a color palette of deep greens and luminous warm golds. The aesthetic is highly polished and minimal, conveying a sense of magic and wonder." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBX60ySFJW984TXvYqFWXW8yYiIB82Eo_E2Yhza8DgO_pkPjM8UI_Q1CxZLEcNW86kiGBDbFVIfoDDIOnKOdKqNFS3U4-AYVjIX9h-ay6vjqmWiwtNHWhKylMe9LhzDyOQTdIKMLWnAu8wr8-iiCC7MmARd7Va3nlfUzC01BDUrpOtqNu9VoGMLU67-ENN3fCq3HtC5VnQCqaowhL85ip_92h2dvQJ9nnrCX3n_DazW8R3eN8MNTJ3Q"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+<span class="font-label-caps text-label-caps text-on-primary bg-primary/90 px-2 py-1 rounded backdrop-blur-sm">Leer</span>
+</div>
+</div>
+<div class="flex flex-col">
+<h3 class="font-ui-body text-ui-body font-semibold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">Whispers in the Glass</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1 truncate">Maya Lin</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="flex items-center text-primary-container">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant ml-1">4.5</span>
+</div>
+<span class="text-outline-variant text-[12px]">•</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant">12 Cap.</span>
+</div>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="w-full aspect-[2/3] rounded-lg overflow-hidden mb-stack-sm book-shadow bg-surface-container relative">
+<img alt="Book Cover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A science fiction book cover featuring a minimalist geometric design of an eclipsed sun over a stark, arid landscape. The colors are muted terracottas and stark whites against a deep, dark space background. The overall look is clean, modern, and intellectual." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqYZFLyzpJjc9NUIDWfLtReK2oapyZBzkQli5SdywxpJ82NV3_m-vQ-57MwtovqOsUNQipBXziZfkeQ4vKtaoxWP9o_veXI9yc0abpCPWQxrgd_mUtHqdokQmsvPCf4CW8UvRkIZ-S1Bp-SsmAy75L0uya0SC2hcoSb3ych_e_aZZSgcJeKXE7oSBmgDaNsUCNKjO_DenscPwOW3XYf27NgFtjlhx85E7_B9EO2b28o6OB79jGKpmd"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+<span class="font-label-caps text-label-caps text-on-primary bg-primary/90 px-2 py-1 rounded backdrop-blur-sm">Leer</span>
+</div>
+</div>
+<div class="flex flex-col">
+<h3 class="font-ui-body text-ui-body font-semibold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">Project Horizon</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1 truncate">Arthur K.</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="flex items-center text-primary-container">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant ml-1">4.9</span>
+</div>
+<span class="text-outline-variant text-[12px]">•</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant">50 Cap.</span>
+</div>
+</div>
+</article>
+<!-- Card 4 -->
+<article class="flex flex-col group cursor-pointer">
+<div class="w-full aspect-[2/3] rounded-lg overflow-hidden mb-stack-sm book-shadow bg-surface-container relative">
+<img alt="Book Cover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A horror thriller book cover showing a dilapidated, Victorian-style door slightly ajar, spilling warm, eerie yellow light into a dark, textured slate-gray hallway. The aesthetic is moody and suspenseful, with a high-end, tactile editorial feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDa3rPWrNxQJRK5AgiVzODJi6WJmBa2tOcpXwSX_Lv-vzlTkgd_jt1LQmbU9H-Lui79yhHVgTWLZ1hTFrZCl5tUhS7GZO5KCQl68UUZoDPqk4wff05C7LTz2yStcfo1l2H27bmzRsytTOsaXMEqEvcb3XHDzFUJTx_oeLOeAsWKwbGpX3VHVSsWyvDGMTQSlu3bGRV1oNorh_kuCD33gDLB30AHBXZh_OcoKmjYN6gdqO-ao1_k-xQR"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+<span class="font-label-caps text-label-caps text-on-primary bg-primary/90 px-2 py-1 rounded backdrop-blur-sm">Leer</span>
+</div>
+</div>
+<div class="flex flex-col">
+<h3 class="font-ui-body text-ui-body font-semibold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">The House on Ash</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1 truncate">S. Black</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="flex items-center text-primary-container">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant ml-1">4.2</span>
+</div>
+<span class="text-outline-variant text-[12px]">•</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant">8 Cap.</span>
+</div>
+</div>
+</article>
+<!-- Card 5 (Hidden on small, visible on md+) -->
+<article class="hidden sm:flex flex-col group cursor-pointer">
+<div class="w-full aspect-[2/3] rounded-lg overflow-hidden mb-stack-sm book-shadow bg-surface-container relative">
+<img alt="Book Cover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A literary fiction cover with a minimalist, abstract watercolor wash in soft blues, indigos, and hints of warm sand. The design evokes a sense of calm reflection and depth, suited for a premium reading platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9_nGx35hXIkQot1Uj0sSrhmtBUxvrOzfpvdKALtS8WpLIbk2YKyZ4k20mwrJFZ2fWv2aTfLU9rjcKdywWc_h_6Bq4-nMBkBx5kr7TQkrvKItIgpURfUKnj1UUs-TUDAuhu1RJXFUhnnHwgGdja94PQi8gb8hx9sOunSfX1kcE67vjxQBuykCVbwjBKRnWhHY_TRgNeeYVd1SSe12xKYNqGoLl8Mw56ig_fbXnAs7mY5-Gm9V_JfMj"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+<span class="font-label-caps text-label-caps text-on-primary bg-primary/90 px-2 py-1 rounded backdrop-blur-sm">Leer</span>
+</div>
+</div>
+<div class="flex flex-col">
+<h3 class="font-ui-body text-ui-body font-semibold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">Tides of Indigo</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1 truncate">L.R. Stone</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="flex items-center text-primary-container">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant ml-1">4.6</span>
+</div>
+<span class="text-outline-variant text-[12px]">•</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant">32 Cap.</span>
+</div>
+</div>
+</article>
+<!-- Card 6 (Hidden on small/medium, visible on lg+) -->
+<article class="hidden lg:flex flex-col group cursor-pointer">
+<div class="w-full aspect-[2/3] rounded-lg overflow-hidden mb-stack-sm book-shadow bg-surface-container relative">
+<img alt="Book Cover" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A contemporary romance cover featuring a soft-focus, macro shot of interwoven hands against a bright, airy background. The lighting is high-key and natural, creating a clean, modern aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuALgQJpYPv4cXj-xKqAaGcr_W9Vf07Lqeo8DY0n3MmLZ29wTeR85t-cgcgOBkLwclpQesgiQ7gPRdDioKH4s9MbEdCaYepyoYyaeNKODD2MkifLsx3KyZtkII0NAoJfsnhtF9dDm7ypgGF1eCd_GFGl8JPTJj0gR9MkIrPwC4_AMECXX3dT8ziHtZ9VVYyfIlVDDP9YZPZCivx06H8ssZGbha7vK7dQQWdHPrFafFYDaYkmenFl5pK1"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+<span class="font-label-caps text-label-caps text-on-primary bg-primary/90 px-2 py-1 rounded backdrop-blur-sm">Leer</span>
+</div>
+</div>
+<div class="flex flex-col">
+<h3 class="font-ui-body text-ui-body font-semibold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">Summer's End</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1 truncate">J. Doe</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="flex items-center text-primary-container">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant ml-1">4.1</span>
+</div>
+<span class="text-outline-variant text-[12px]">•</span>
+<span class="font-ui-body-sm text-ui-body-sm text-on-surface-variant">15 Cap.</span>
+</div>
+</div>
+</article>
+</div>
+</section>
+<!-- Editors Picks Section -->
+<section class="mt-stack-lg">
+<div class="flex items-center justify-between mb-stack-md">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-md md:text-headline-md text-on-surface">Selección del Editor</h2>
+</div>
+<div class="bg-surface-container-low rounded-xl p-6 md:p-8 flex flex-col md:flex-row gap-6 items-center shadow-sm border border-outline-variant/10">
+<div class="w-32 md:w-48 shrink-0 aspect-[2/3] rounded-lg overflow-hidden book-shadow">
+<img alt="Featured Book" class="w-full h-full object-cover" data-alt="A striking book cover featuring a bold, minimalist typographic layout over a deep indigo background. A single, stylized silver feather rests diagonally across the composition. The design is elegant, high-end, and perfect for an editor's choice spotlight." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_w1K8VRpehBCLHyWJCOpqMc_eIzJaP25V85m8vkpxz22DHyES0Lse7-Wv9K7gA5OXJWdnpiSHigVWikYOZteR8EK76Gg8p1yd5sC6sw0Xd31SLJMa0U2q5Nmhqfiim09qgrDVt7e3ScW19gieqnoFssySd1b_OTdXGJ0PZZc54gXwKff466ckIe44kjrCLwCQVP1NLah01bD3rnD3pxEeSnD4BUCRxWWywLwAjFJNLqfVDERE6Z-0"/>
+</div>
+<div class="flex flex-col items-center md:items-start text-center md:text-left flex-grow">
+<span class="font-label-caps text-label-caps text-primary tracking-wider mb-2">OBRA MAESTRA DESTACADA</span>
+<h3 class="font-headline-xl text-headline-xl md:font-headline-xl md:text-headline-xl text-on-surface mb-2">The Silver Feather</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mb-4 max-w-lg">Una historia expansiva de magia, traición y el precio del poder en un mundo donde los recuerdos son moneda de cambio. Los críticos la llaman la fantasía épica de lectura obligada de la década.</p>
+<div class="flex items-center gap-4 mt-auto">
+<button class="bg-primary text-on-primary hover:bg-primary-container transition-colors duration-500 px-6 py-2 rounded-full font-ui-body-sm font-medium shadow-md">Empezar a Leer</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 font-ui-body-sm">
+<span class="material-symbols-outlined text-[18px]">bookmark_add</span> Guardar
+                         </button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center py-3 bg-surface md:hidden z-50 rounded-t-xl shadow-[0_-4px_12px_rgba(0,0,0,0.05)] border-t border-outline-variant/10">
+<!-- Active: Explore -->
+<a class="flex flex-col items-center gap-1 text-primary bg-primary-fixed/20 px-4 py-1 rounded-full active:scale-90 transition-all duration-300" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">explore</span>
+<span class="font-label-caps text-label-caps">Explorar</span>
+</a>
+<!-- Inactive: Library -->
+<a class="flex flex-col items-center gap-1 text-on-surface-variant hover:text-primary transition-colors active:scale-90 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">auto_stories</span>
+<span class="font-label-caps text-label-caps">Biblioteca</span>
+</a>
+<!-- Inactive: Write -->
+<a class="flex flex-col items-center gap-1 text-on-surface-variant hover:text-primary transition-colors active:scale-90 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">edit_note</span>
+<span class="font-label-caps text-label-caps">Escribir</span>
+</a>
+<!-- Inactive: Profile -->
+<a class="flex flex-col items-center gap-1 text-on-surface-variant hover:text-primary transition-colors active:scale-90 transition-all duration-300" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-caps text-label-caps">Perfil</span>
+</a>
+</nav>
+</body></html>

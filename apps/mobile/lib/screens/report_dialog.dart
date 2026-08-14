@@ -75,10 +75,7 @@ class _ReportDialogState extends State<ReportDialog> {
                   SizedBox(width: 8),
                   Text(
                     'Reportar Contenido',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -119,7 +116,8 @@ class _ReportDialogState extends State<ReportDialog> {
             maxLines: 3,
             decoration: const InputDecoration(
               labelText: 'Detalles adicionales (Opcional)',
-              hintText: 'Explica brevemente por qué este contenido incumple las normas...',
+              hintText:
+                  'Explica brevemente por qué este contenido incumple las normas...',
             ),
           ),
           const SizedBox(height: 24),

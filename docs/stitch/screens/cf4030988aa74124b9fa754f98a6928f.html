@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Perfil - ReadInn</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@400&amp;family=Merriweather:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-primary-fixed": "#2a1700", "primary-container": "#f59e0b", "surface": "#f7f9fb", "on-primary": "#ffffff", "secondary-fixed": "#d5e3fd", "inverse-surface": "#2d3133", "paper-text": "#432818", "on-primary-container": "#613b00", "on-tertiary-fixed-variant": "#3323cc", "outline-variant": "#d8c3ad", "on-background": "#191c1e", "on-secondary-fixed-variant": "#3a485c", "on-primary-fixed-variant": "#653e00", "background": "#f7f9fb", "surface-container-low": "#f2f4f6", "inverse-on-surface": "#eff1f3", "surface-container-highest": "#e0e3e5", "tertiary-container": "#aaa8ff", "surface-container-high": "#e6e8ea", "on-surface": "#191c1e", "on-error": "#ffffff", "primary-fixed": "#ffddb8", "indigo-highlight": "#6366F1", "secondary-fixed-dim": "#b9c7e0", "surface-container-lowest": "#ffffff", "on-secondary-fixed": "#0d1c2f", "outline": "#867461", "inverse-primary": "#ffb95f", "tertiary": "#4d44e3", "secondary-container": "#d5e3fd", "error": "#ba1a1a", "on-error-container": "#93000a", "on-tertiary-container": "#2f1dc9", "on-secondary-container": "#57657b", "paper-warm": "#FBF0D9", "surface-bright": "#f7f9fb", "surface-dim": "#d8dadc", "tertiary-fixed": "#e2dfff", "surface-tint": "#855300", "primary": "#855300", "surface-container": "#eceef0", "on-tertiary": "#ffffff", "on-tertiary-fixed": "#0f0069", "surface-variant": "#e0e3e5", "on-surface-variant": "#534434", "error-container": "#ffdad6", "secondary": "#515f74", "primary-fixed-dim": "#ffb95f", "tertiary-fixed-dim": "#c3c0ff", "on-secondary": "#ffffff"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"
+                    },
+                    spacing: {
+                        "stack-md": "1.5rem", "margin-mobile": "1rem", "max-width-content": "1280px", "stack-xs": "0.25rem", "gutter": "1.5rem", "max-width-reader": "720px", "margin-desktop": "3rem", "stack-sm": "0.75rem", "stack-lg": "3rem"
+                    },
+                    fontFamily: {
+                        "mono-reader": ["JetBrains Mono"], "headline-lg": ["Inter"], "label-caps": ["Inter"], "headline-xl": ["Inter"], "headline-md": ["Inter"], "ui-body": ["Inter"], "reader-body": ["Merriweather"], "headline-lg-mobile": ["Inter"], "ui-body-sm": ["Inter"]
+                    },
+                    fontSize: {
+                        "mono-reader": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.06em", "fontWeight": "700" }],
+                        "headline-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "ui-body": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "reader-body": ["19px", { "lineHeight": "1.85", "letterSpacing": "0.01em", "fontWeight": "400" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "34px", "fontWeight": "700" }],
+                        "ui-body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-ui-body antialiased selection:bg-primary-container selection:text-on-primary-container min-h-screen flex flex-col md:flex-row">
+<!-- TopAppBar (Mobile) -->
+<header class="fixed top-0 w-full z-50 bg-surface flex items-center justify-between px-margin-mobile h-16 md:hidden border-b border-outline-variant shadow-sm transition-transform duration-300">
+<div class="flex items-center gap-4">
+<button class="p-2 -ml-2 text-primary hover:bg-surface-container-high transition-colors rounded-full active:scale-95">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<span class="font-headline-md text-headline-md font-bold text-primary">ReadInn</span>
+</div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant bg-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="A cinematic, soft-lit portrait photograph of a modern, intellectual person reading a book in a bright, minimalist sunlit room. High-key lighting, editorial fashion style, focusing on a calm and curious expression. The color palette is neutral with soft warm tones, emphasizing a clean, contemporary aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBgLbKR5ukgyuYVbEHP9kqN14Q7kjlXC6BiyonR16h8fu07JByD9hdZAU8Vq-gSeUCVorRHb6tRUm1SZAJbNvFZck8DnkkEk8jLJbDuq9r5cofw-eaxcaXpy0rmpEc6h-0A7gRqJNoy3bYQUeNLvORI-S2TzNvDZ1-DmRVY8bTc7RnG-sOokOQF1LGIIB2e7cXP66KxpXnfYJHBdYFQ4xC8dTzHS9felQi-KwXyAMYstiX3TeU1d0Xu"/>
+</div>
+</header>
+<!-- NavigationDrawer (Desktop) -->
+<aside class="hidden md:flex flex-col h-screen w-80 fixed inset-y-0 left-0 z-[60] bg-surface border-r border-outline-variant bg-surface-container-low shadow-lg">
+<div class="p-6 border-b border-outline-variant flex flex-col items-start gap-4">
+<div class="w-16 h-16 rounded-full overflow-hidden border-2 border-primary-container bg-surface-container-highest shadow-sm">
+<img class="w-full h-full object-cover" data-alt="A cinematic, soft-lit portrait photograph of a modern, intellectual person reading a book in a bright, minimalist sunlit room. High-key lighting, editorial fashion style, focusing on a calm and curious expression. The color palette is neutral with soft warm tones, emphasizing a clean, contemporary aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUsTg2i1ngGR9R0w1jEhGjkk4lUqTgz7UNhopkuoKX_dfeMzCKcXdqUPh-yFlD981Ay0EdP3H63C8qQpt8loMXC7fle7HzYR_0lPW_mCgf6GrDlAZJK3kcjVq-5lx8-BzgeOJgEI1J9YPCX1fIXpAtdqhBlXPtHyTM_9hLVgpGQ4_Uy5-mIB3u_ltiJ3jVCT9cfiK-_sf2iQSao8lmx7HGbbaBLu2RTdPydtyABp669vSRhmcKV8mi"/>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-primary font-bold">Lector Curioso</h2>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1">Plan Premium</p>
+</div>
+</div>
+<nav class="flex-1 overflow-y-auto py-4 flex flex-col gap-2">
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 mx-2 rounded-full hover:bg-surface-container-highest transition-colors active:opacity-80" href="#">
+<span class="material-symbols-outlined">search</span>
+<span class="font-ui-body text-ui-body">Explorar</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 mx-2 rounded-full hover:bg-surface-container-highest transition-colors active:opacity-80" href="#">
+<span class="material-symbols-outlined">book</span>
+<span class="font-ui-body text-ui-body">Biblioteca</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 mx-2 rounded-full hover:bg-surface-container-highest transition-colors active:opacity-80" href="#">
+<span class="material-symbols-outlined">auto_stories</span>
+<span class="font-ui-body text-ui-body">Estudio</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 mx-2 rounded-full hover:bg-surface-container-highest transition-colors active:opacity-80" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-ui-body text-ui-body">Historial</span>
+</a>
+<div class="mt-auto pt-4 border-t border-outline-variant mx-4">
+<a class="flex items-center gap-4 text-on-surface-variant px-4 py-3 rounded-full hover:bg-surface-container-highest transition-colors active:opacity-80" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-ui-body text-ui-body">Ajustes</span>
+</a>
+</div>
+</nav>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-80 pt-20 pb-24 md:pt-12 md:pb-12 px-margin-mobile md:px-margin-desktop w-full max-w-max-width-content mx-auto">
+<!-- Profile Header Section -->
+<section class="flex flex-col md:flex-row items-center md:items-start gap-stack-md md:gap-stack-lg mb-stack-lg text-center md:text-left">
+<div class="relative w-32 h-32 md:w-40 md:h-40 shrink-0">
+<img class="w-full h-full object-cover rounded-full shadow-md border-4 border-surface" data-alt="A cinematic, soft-lit portrait photograph of a modern, intellectual person reading a book in a bright, minimalist sunlit room. High-key lighting, editorial fashion style, focusing on a calm and curious expression. The color palette is neutral with soft warm tones, emphasizing a clean, contemporary aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDu0M3rLD9Zk9ncyhMGNJ_qBa9qmUHGbc0Km0oyjMIraKc0bFJzstJYJNjsTvQRSgCmX4zfSL3LeW0ZTUYck8wtIHNKtform4EQcoImmginQQSYTG2jnBwJj9SFhBIHpkwPr8DHxYy4QBOOvCTvSTYXcrdnlBHaMwTAo-LU2vjBblTapg43TUulrL0rW29Pq0koSltKqPjsoYMAu6U6Ih7yA8AdJxCExdi5vOkUa99-QoTB2J60ANNX"/>
+<button aria-label="Editar foto de perfil" class="absolute bottom-0 right-0 bg-primary-container text-on-primary-container p-2 rounded-full shadow-sm hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-sm">edit</span>
+</button>
+</div>
+<div class="flex-1 max-w-2xl">
+<h1 class="font-headline-xl text-headline-lg-mobile md:text-headline-xl text-on-surface mb-2">Lector Curioso</h1>
+<p class="font-reader-body text-reader-body text-on-surface-variant mb-6 leading-relaxed">
+                    Amante de la ficción literaria contemporánea y el realismo mágico. Siempre buscando la próxima gran historia que me haga reflexionar. Devorador de libros a tiempo parcial.
+                </p>
+<div class="flex flex-wrap justify-center md:justify-start gap-x-8 gap-y-4 mb-8 border-y border-outline-variant py-4 md:border-none md:py-0">
+<div class="flex flex-col items-center md:items-start">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">142</span>
+<span class="font-label-caps text-label-caps text-secondary tracking-widest uppercase">Historias Leídas</span>
+</div>
+<div class="w-px bg-outline-variant hidden md:block"></div>
+<div class="flex flex-col items-center md:items-start">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">854</span>
+<span class="font-label-caps text-label-caps text-secondary tracking-widest uppercase">Seguidores</span>
+</div>
+<div class="w-px bg-outline-variant hidden md:block"></div>
+<div class="flex flex-col items-center md:items-start">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">120</span>
+<span class="font-label-caps text-label-caps text-secondary tracking-widest uppercase">Siguiendo</span>
+</div>
+</div>
+<div class="flex gap-4 justify-center md:justify-start">
+<button class="bg-[#F59E0B] hover:bg-[#D97706] text-white font-ui-body text-ui-body font-bold py-2 px-6 rounded-full transition-colors shadow-sm">
+                        Editar Perfil
+                    </button>
+<button class="border border-outline hover:bg-surface-container-high text-on-surface font-ui-body text-ui-body font-bold py-2 px-6 rounded-full transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">share</span> Compartir
+                    </button>
+</div>
+</div>
+</section>
+<!-- Divider -->
+<hr class="border-t border-outline-variant mb-stack-lg"/>
+<!-- Reading Lists Section -->
+<section>
+<div class="flex justify-between items-end mb-stack-md">
+<h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-surface">Mis Listas de Lectura</h2>
+<a class="font-ui-body-sm text-ui-body-sm text-primary hover:underline flex items-center gap-1" href="#">Ver todas <span class="material-symbols-outlined text-[16px]">chevron_right</span></a>
+</div>
+<!-- Bento Grid for Lists -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-gutter">
+<!-- List 1: Favoritos del Año -->
+<div class="group cursor-pointer">
+<div class="grid grid-cols-2 grid-rows-2 gap-2 bg-surface-container-low p-2 rounded-xl mb-4 aspect-[4/3] border border-outline-variant hover:border-primary-container transition-colors relative overflow-hidden">
+<img class="w-full h-full object-cover rounded-lg row-span-2 col-span-1 shadow-sm" data-alt="A minimalist book cover design featuring abstract geometric shapes and elegant typography. The layout is clean and modern, using generous white space and a sophisticated color palette of deep slate and a subtle hint of orange. The aesthetic is high-end editorial, evoking a sense of literary fiction or modern philosophy." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwqJFV47mYj_nypG9Vv5xVoM1gLwun7ZpIfIwUAkjctiPT5xEHelBal4THRPCgYx6H3kbDq6aPC3---vZ_QnpXI-pT9Hb_XKkUp_E2vk1vLaY5bprKX7yA7W-D_i2DidHq1K8yA4Xex8hcSXIkkj2OZxXzwd4q1MkCsAGQCTZvHxDCUeDonuu_o8EP-kucVUBUh9tM7GNXel7Er5rP7ZyhqkinISinbgtIWvjBRVar6Or2WpKU1FHr"/>
+<img class="w-full h-full object-cover rounded-lg shadow-sm" data-alt="A minimalist book cover featuring a stark, high-contrast black and white photograph of an empty architectural space. Elegant serif typography is placed precisely in the lower third. The design is clean, editorial, and conveys a mood of quiet introspection and modern minimalism." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCe9d2TOUXhzKqR4Qov92NKyX_wLjEUaoEDYvoCc8eFHtGKOFBxuZKCnTAiS3Hl7Xi8gKsj0wpKiDlZ1tU9etN7XLPsbWX_wH1xsL9AG_rZD3AIBMMCEr4auF08tDprRDmqKGebZYn_ouTx043UvMZmI8fNpB7D6tpOwFk2dlvKJUzq-naHZ-cjizB2CqbDFiycD6y9QJH9DyWcmnak0UDGQg5Nl8OAF-oXcbd4dqjZvAte_SlUIhur"/>
+<img class="w-full h-full object-cover rounded-lg shadow-sm" data-alt="A clean, modern book cover design with a monochromatic warm paper background. Delicate, thin line-art illustrations of botanical elements are arranged asymmetrically. The typography is modern sans-serif, positioned cleanly at the top. The overall aesthetic is calm, literary, and refined." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXU4Zvi272TD7NlZfV_eJWecJFLIY2G5BfLTBHHO5XatF1TZ-0PxFt52478XNY9irG_-Rw09-mJNypBVFOvvxb-0zQ3loKn4FD4fx7qWjrZtoV5IIRHtfn5frhc5iRjQQsKmBTZuN26ceYnKtLJsMqPJqE6iDW5_C_w10URI5B6a4v31EOGoEO5IJ5DbZn0U5y3r1T60estwuZxnYBSz4oVn-DiNM5-UCU_Xq-e3-tbIfoHsuo1nYM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+<span class="bg-surface text-on-surface font-label-caps text-label-caps px-3 py-1 rounded-full shadow-sm">4 Libros</span>
+</div>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface group-hover:text-primary transition-colors">Favoritos del Año</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1">Las joyas ocultas que me cautivaron este año.</p>
+</div>
+<!-- List 2: Para Leer en Invierno -->
+<div class="group cursor-pointer">
+<div class="grid grid-cols-2 grid-rows-2 gap-2 bg-surface-container-low p-2 rounded-xl mb-4 aspect-[4/3] border border-outline-variant hover:border-primary-container transition-colors relative overflow-hidden">
+<img class="w-full h-full object-cover rounded-lg shadow-sm" data-alt="An abstract book cover design dominated by deep indigo and slate blue tones. The cover features a subtle, grainy texture resembling vintage paper. Bold, modern typography cuts through the center in stark white. The style is sophisticated, minimalist, and evokes a sense of deep narrative." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5RHwO77Q25WKc4kH3CKTIhQ1Gv_SDF9DgcW1Qes6jeU4FB3XnzWMKEC0AwWcYwXrg-utH33xD26XfRVgAQ9rQ9IfMVslF0QbYQzREX6Kjb7pPAKoOp6pPgOd3psex-7DgsDq3Ko0kmGVmFa_moeLhya_jG2L2I9SbbFWZPmQ5kAwMfDfeAwgDurR9d9nFK-CYPyMky8BO8hAnZipBWiW8BTMBY9lglEs6QANp4on695QOY1FDHpw2"/>
+<img class="w-full h-full object-cover rounded-lg shadow-sm row-span-2 col-span-1" data-alt="A serene book cover design featuring a muted, pastel color palette of soft grey and pale orange. A single, minimalist graphic element—perhaps a stylized sun or moon—anchors the composition. The typography is classic serif, offering a timeless, elegant, and quiet editorial look." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvoBlMl_CkUljGBfD6eAlCnEwLuOVJd7NVR-wnDD4XbyNXVHqSLRGQSSn-ihwtkSP3U3hM2ne-fJcQT5YeuQNMC_yKL5glZGVig6AVzAgiPiwwBmzDG8YfB_yWxf0U0j5mig6tEHodiVBUR5lKHKc0VZQb1BvjN8sKbjMIN1a_4uw9RiNB4N60t_x2KJgqeuYKaPLzucFSNTT4h8lO2dWxfp6mAnpocULwBlnJNCGncZl3yz1KqV64"/>
+<div class="bg-surface-variant rounded-lg flex items-center justify-center shadow-inner">
+<span class="material-symbols-outlined text-secondary text-3xl">library_add</span>
+</div>
+<div class="absolute inset-0 bg-gradient-to-t from-surface/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+<span class="bg-surface text-on-surface font-label-caps text-label-caps px-3 py-1 rounded-full shadow-sm">3 Libros</span>
+</div>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface group-hover:text-primary transition-colors">Para Leer en Invierno</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1">Historias largas para días fríos.</p>
+</div>
+<!-- List 3: Realismo Mágico -->
+<div class="group cursor-pointer">
+<div class="grid grid-cols-2 grid-rows-2 gap-2 bg-surface-container-low p-2 rounded-xl mb-4 aspect-[4/3] border border-outline-variant hover:border-primary-container transition-colors relative overflow-hidden">
+<img class="w-full h-full object-cover rounded-lg shadow-sm row-span-2 col-span-1" data-alt="A striking book cover design with a vivid, high-contrast composition. The background is a stark, clean white, featuring a single, hyper-realistic, yet surreal object in the center, rendered in warm, organic tones. The typography is elegant and understated, maintaining a premium editorial feel." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4incS0P-5eq2SyIrF1DHHFWji_MHcvfZxtXq5KtFbXr04ml1Mzs8uBuzl5DNxqV0CzDoH7TH_6YH1I5gH0rvihE95BSOuUspiNfTZCKjIp088o2F0FaiT9-KQ08U6AA9Wh9IJohQwQNWc9oWl0KqSMw6RmTx_GnLYSi0QVUs95SOrQtJJsnMwRDNrD-PSCIxxYIMnsdCKvsMd9Ql3xGOGDSEFEJUjUEJTsYcJCz0ItsMBYLEPWqv4"/>
+<img class="w-full h-full object-cover rounded-lg shadow-sm" data-alt="A minimalist editorial book cover. The entire surface is a deep, rich charcoal grey. Very small, perfectly kerning sans-serif text in a muted gold tone sits precisely in the absolute center. The design conveys immense confidence, high-end literary quality, and absolute modern minimalism." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4Y1VQv_LKwOOP8CG__4k9eNInEKaYVfoO7EIlWvI6N0Zs1KpQ1FfkL4WmS3J2bU7I4b6Dt1oFJzB3a6jUp8139tDU8KXTPzhAX8xW2wHVwrVYl2ne2OdTQAgajilpUjBR7rvwPkTlnyvfBdFBLxinlPB65wZaFsliik0Ktzc08eHT7MTETM77q8Iq7I0g4SFRed3Dr6_6A2zxryp0a8QId67hAvNEAxhuCc0J7le_hLX8qRCIKU0Z"/>
+<img class="w-full h-full object-cover rounded-lg shadow-sm" data-alt="A beautifully simple book cover featuring a wash of pale, translucent watercolor in a warm, muted orange hue over a textured off-white background. The title is set in a delicate, classical serif font, positioned off-center. It exudes a soft, reflective, and poetic atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSuI8bM-cOl7slbsszTg--gb3jX9edD0viuH87rWW7RDNAHu8boNi6K2SDtvn-tNLFAgAEKeLC7FuIemcUoxTFhI78t2JEVqBGpY4QDnWMy6RR-dsozeok1nSlsxHDBfYNLp2oJ5sJK7Y5bDK_hrhvQtowGYz7k_vznxXPzCXo0UU1DwwAA9zZa6WGJQyMbqeQG60LkiAIwPKYEsJsmElBYTaghdPca3VJQpsOOSvY55OLHdX3aUn1"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+<span class="bg-surface text-on-surface font-label-caps text-label-caps px-3 py-1 rounded-full shadow-sm">12 Libros</span>
+</div>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface group-hover:text-primary transition-colors">Realismo Mágico</h3>
+<p class="font-ui-body-sm text-ui-body-sm text-on-surface-variant mt-1">Donde lo cotidiano se vuelve extraordinario.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile) -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center py-2 px-margin-mobile bg-surface border-t border-outline-variant z-50 md:hidden pb-safe">
+<a class="flex flex-col items-center justify-center text-secondary hover:bg-primary-fixed-dim/10 active:scale-90 transition-transform p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined">explore</span>
+<span class="font-label-caps text-label-caps mt-1">Explorar</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary hover:bg-primary-fixed-dim/10 active:scale-90 transition-transform p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined">library_books</span>
+<span class="font-label-caps text-label-caps mt-1">Biblioteca</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary hover:bg-primary-fixed-dim/10 active:scale-90 transition-transform p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined">edit_note</span>
+<span class="font-label-caps text-label-caps mt-1">Escribir</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary font-bold hover:bg-primary-fixed-dim/10 active:scale-90 transition-transform p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined icon-fill">person</span>
+<span class="font-label-caps text-label-caps mt-1">Perfil</span>
+</a>
+</nav>
+</body></html>

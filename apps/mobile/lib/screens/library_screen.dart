@@ -1,119 +1,243 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/auth_provider.dart';
 import '../providers/story_providers.dart';
 import '../theme/app_theme.dart';
+import '../widgets/readinn_widgets.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final storiesAsync = ref.watch(storiesProvider);
+    final storiesAsync = ref.watch(libraryProvider);
+    final auth = ref.watch(authProvider);
+    return ReadInnShell(
+      currentIndex: 1,
+      child: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 18, 16, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Mi biblioteca',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const TabBar(
+              tabs: [
+                Tab(text: 'Guardadas'),
+                Tab(text: 'Recientes'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  storiesAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, _) => Center(
+                      child: Text('No se pudo cargar la biblioteca: $error'),
+                    ),
+                    data: (stories) => ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: stories.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final story = stories[index];
+                        return _LibraryTile(
+                          title: story.title,
+                          author: story.author,
+                          subtitle:
+                              '${story.genre} · ${story.chapterCount} capítulos',
+                          asset: index.isEven
+                              ? 'assets/images/silent_street.jpg'
+                              : 'assets/images/whispers_glass.jpg',
+                          onTap: () => context.push('/story/${story.id}'),
+                          onRemove: () async {
+                            await ref
+                                .read(apiServiceProvider)
+                                .toggleLibrary(story.id, token: auth.token);
+                            ref.invalidate(libraryProvider);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      const _ReadingProgressTile(),
+                      const SizedBox(height: 12),
+                      _ReadingProgressTile(
+                        title: 'La ciudad en silencio',
+                        chapter: 'Capítulo 1 · A las 23:17',
+                        progress: 0.28,
+                        asset: 'assets/images/project_horizon.jpg',
+                        onTap: () => context.push(
+                          '/story/story-quiet-city/read/chapter-quiet-city-1',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Mi Biblioteca', style: TextStyle(fontWeight: FontWeight.bold)),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.go('/'),
-          ),
-          bottom: TabBar(
-            labelColor: ReadInnColors.primary,
-            unselectedLabelColor: ReadInnColors.onSurfaceVariant,
-            indicatorColor: ReadInnColors.primary,
-            tabs: const [
-              Tab(text: 'Guardadas'),
-              Tab(text: 'Lecturas Recientes'),
+class _LibraryTile extends StatelessWidget {
+  final String title;
+  final String author;
+  final String subtitle;
+  final String asset;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+
+  const _LibraryTile({
+    required this.title,
+    required this.author,
+    required this.subtitle,
+    required this.asset,
+    required this.onTap,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              BookCover(title: title, asset: asset, width: 54, height: 82),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      author,
+                      style: const TextStyle(
+                        color: ReadInnColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: ReadInnColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Quitar de la biblioteca',
+                onPressed: onRemove,
+                icon: const Icon(
+                  Icons.bookmark_remove_outlined,
+                  color: ReadInnColors.primaryDeep,
+                ),
+              ),
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            // Saved stories tab
-            storiesAsync.when(
-              data: (stories) {
-                if (stories.isEmpty) {
-                  return const Center(child: Text('No tienes obras guardadas'));
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: stories.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final story = stories[index];
-                    return Card(
-                      child: ListTile(
-                        leading: Container(
-                          width: 44,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: ReadInnColors.primary,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.book, color: Colors.white, size: 20),
-                          ),
-                        ),
-                        title: Text(story.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('${story.author} • ${story.chapterCount} cap.'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.bookmark_remove_outlined, color: Colors.red),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Obra eliminada de tu biblioteca')),
-                            );
-                          },
-                        ),
-                        onTap: () => context.go('/story/${story.id}'),
-                      ),
-                    );
-                  },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Center(child: Text('Error: $err')),
-            ),
-            // Recent reading tab
-            ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Card(
-                  child: ListTile(
-                    leading: Container(
-                      width: 44,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1F5F73),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.menu_book, color: Colors.white, size: 20),
+      ),
+    );
+  }
+}
+
+class _ReadingProgressTile extends StatelessWidget {
+  final String title;
+  final String chapter;
+  final double progress;
+  final String asset;
+  final VoidCallback? onTap;
+
+  const _ReadingProgressTile({
+    this.title = 'La luz del faro',
+    this.chapter = 'Capítulo 1 · El mapa bajo la sal',
+    this.progress = 0.65,
+    this.asset = 'assets/images/silver_feather.jpg',
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap:
+            onTap ??
+            () =>
+                context.go('/story/story-lighthouse/read/chapter-lighthouse-1'),
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              BookCover(title: title, asset: asset, width: 54, height: 82),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
                       ),
                     ),
-                    title: const Text('La luz del faro', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 4),
-                        const Text('Capítulo 1: El mapa bajo la sal'),
-                        const SizedBox(height: 6),
-                        LinearProgressIndicator(
-                          value: 0.65,
-                          color: ReadInnColors.primary,
-                          backgroundColor: ReadInnColors.primary.withValues(alpha: 0.2),
-                        ),
-                      ],
+                    const SizedBox(height: 5),
+                    Text(
+                      chapter,
+                      style: const TextStyle(
+                        color: ReadInnColors.muted,
+                        fontSize: 12,
+                      ),
                     ),
-                    trailing: const Icon(Icons.play_arrow_rounded, color: ReadInnColors.primary),
-                    onTap: () => context.go('/story/story-lighthouse/read/chapter-lighthouse-1'),
-                  ),
+                    const SizedBox(height: 12),
+                    LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 5,
+                      borderRadius: BorderRadius.circular(4),
+                      color: ReadInnColors.primary,
+                      backgroundColor: ReadInnColors.softOrange,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.play_circle_fill_rounded,
+                color: ReadInnColors.primaryDeep,
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -1,0 +1,306 @@
+﻿{
+    "designSystems":  [
+                          {
+                              "designSystem":  {
+                                                   "displayName":  "ReadInn",
+                                                   "styleGuidelines":  "## Brand \u0026 Style\n\nThe design system for the Spanish-market platform, **ReadInn**, is defined by a **Clean Editorial** aesthetic that prioritizes clarity, white space, and a sophisticated literary atmosphere. It targets a modern Spanish-speaking audience that values both the convenience of digital reading and the prestige of traditional publishing.\n\nThe design style is **Minimalism** with **Modern Editorial** influences. The UI serves as a quiet frame for the content, using high-contrast typography and a restricted color palette to evoke a sense of \"focus and discovery.\" The emotional response is one of intellectual clarity—removing visual clutter to honor the writer\u0027s craft while providing a premium, effortless user experience.\n\n## Layout \u0026 Spacing\n\nReadInn utilizes a **Fluid Grid** for the dashboard and a strictly **Fixed Grid** for the reader view.\n\n- **Editorial Layout:** A 12-column grid on desktop. Large whitespace margins (`margin-desktop`) are used to create the \"magazine\" feel.\n- **Reading Column:** Content is constrained to a `720px` column to maintain an optimal \"Line Length\" (Longitud de Línea) for comfortable reading.\n- **Breakpoints:**\n    - **Desktop (1024px+):** Full 12-column with wide margins.\n    - **Tablet (768px - 1023px):** 8-column grid, margins reduce to `2rem`.\n    - **Mobile (\u003c767px):** 4-column grid or single-stack, margins at `1rem`. \n- **Vertical Rhythm:** A base-8 system. Use `stack-lg` for section headers (e.g., \"Libros Populares\") and `stack-sm` for internal component spacing.\n\n## Elevation \u0026 Depth\n\nVisual hierarchy is achieved through **Tonal Layers** and **Low-contrast outlines** rather than heavy shadows, preserving the flat editorial aesthetic.\n\n- **Surfaces:** Use `#FFFFFF` for the primary layer. Secondary layers (sidebars, metadata panels) use `#F8FAFC`.\n- **Borders:** Instead of shadows, use `1px` solid borders in a very light slate (`#E2E8F0`) to define cards and containers.\n- **Active Elevation:** Only the primary book covers and main \"Start Reading\" buttons use a soft, tinted ambient shadow (Orange-tinted for buttons) to suggest they are \"lifted\" from the page.\n- **Overlays:** Modals and bottom sheets use a high-blur backdrop (Glassmorphism effect) to maintain the sense of a continuous white environment while focusing the user\u0027s attention.\n\n## Components\n\n- **Botón Primario (Primary Button):** Orange (`#F59E0B`) background with white text. High-contrast, bold Inter typography.\n- **Tarjetas de Libro (Book Cards):** Fixed 2:3 aspect ratio for covers. No borders on the image, but a subtle `0.5rem` radius. Titles in `headline-md` (Slate 800).\n- **Inputs (Campos de Entrada):** White background, `1px` slate-200 border, turning Orange on focus. \n- **Chips de Género:** Light slate background (`#F1F5F9`) with slate-700 text. On selection, they transition to the brand Indigo (`#4F46E5`) with white text.\n- **Control de Lectura (Reader Controls):** Bottom-docked on mobile, top-right on desktop. Uses \"Ghost\" style buttons that only reveal their background on hover.\n- **Indicador de Progreso:** A thin orange line at the top of the reader view, providing non-intrusive feedback on chapter completion.",
+                                                   "theme":  {
+                                                                 "bodyFont":  "MERRIWEATHER",
+                                                                 "bodyFontFamily":  "Merriweather",
+                                                                 "colorMode":  "LIGHT",
+                                                                 "colorVariant":  "FIDELITY",
+                                                                 "customColor":  "#f59e0b",
+                                                                 "designMd":  "---\nname: ReadInn\ncolors:\n  surface: \u0027#f7f9fb\u0027\n  surface-dim: \u0027#d8dadc\u0027\n  surface-bright: \u0027#f7f9fb\u0027\n  surface-container-lowest: \u0027#ffffff\u0027\n  surface-container-low: \u0027#f2f4f6\u0027\n  surface-container: \u0027#eceef0\u0027\n  surface-container-high: \u0027#e6e8ea\u0027\n  surface-container-highest: \u0027#e0e3e5\u0027\n  on-surface: \u0027#191c1e\u0027\n  on-surface-variant: \u0027#534434\u0027\n  inverse-surface: \u0027#2d3133\u0027\n  inverse-on-surface: \u0027#eff1f3\u0027\n  outline: \u0027#867461\u0027\n  outline-variant: \u0027#d8c3ad\u0027\n  surface-tint: \u0027#855300\u0027\n  primary: \u0027#855300\u0027\n  on-primary: \u0027#ffffff\u0027\n  primary-container: \u0027#f59e0b\u0027\n  on-primary-container: \u0027#613b00\u0027\n  inverse-primary: \u0027#ffb95f\u0027\n  secondary: \u0027#515f74\u0027\n  on-secondary: \u0027#ffffff\u0027\n  secondary-container: \u0027#d5e3fd\u0027\n  on-secondary-container: \u0027#57657b\u0027\n  tertiary: \u0027#4d44e3\u0027\n  on-tertiary: \u0027#ffffff\u0027\n  tertiary-container: \u0027#aaa8ff\u0027\n  on-tertiary-container: \u0027#2f1dc9\u0027\n  error: \u0027#ba1a1a\u0027\n  on-error: \u0027#ffffff\u0027\n  error-container: \u0027#ffdad6\u0027\n  on-error-container: \u0027#93000a\u0027\n  primary-fixed: \u0027#ffddb8\u0027\n  primary-fixed-dim: \u0027#ffb95f\u0027\n  on-primary-fixed: \u0027#2a1700\u0027\n  on-primary-fixed-variant: \u0027#653e00\u0027\n  secondary-fixed: \u0027#d5e3fd\u0027\n  secondary-fixed-dim: \u0027#b9c7e0\u0027\n  on-secondary-fixed: \u0027#0d1c2f\u0027\n  on-secondary-fixed-variant: \u0027#3a485c\u0027\n  tertiary-fixed: \u0027#e2dfff\u0027\n  tertiary-fixed-dim: \u0027#c3c0ff\u0027\n  on-tertiary-fixed: \u0027#0f0069\u0027\n  on-tertiary-fixed-variant: \u0027#3323cc\u0027\n  background: \u0027#f7f9fb\u0027\n  on-background: \u0027#191c1e\u0027\n  surface-variant: \u0027#e0e3e5\u0027\n  paper-warm: \u0027#FBF0D9\u0027\n  paper-text: \u0027#432818\u0027\n  indigo-highlight: \u0027#6366F1\u0027\ntypography:\n  headline-xl:\n    fontFamily: Inter\n    fontSize: 48px\n    fontWeight: \u0027800\u0027\n    lineHeight: 56px\n    letterSpacing: -0.03em\n  headline-lg:\n    fontFamily: Inter\n    fontSize: 32px\n    fontWeight: \u0027700\u0027\n    lineHeight: 40px\n    letterSpacing: -0.02em\n  headline-lg-mobile:\n    fontFamily: Inter\n    fontSize: 28px\n    fontWeight: \u0027700\u0027\n    lineHeight: 34px\n  headline-md:\n    fontFamily: Inter\n    fontSize: 24px\n    fontWeight: \u0027600\u0027\n    lineHeight: 32px\n  reader-body:\n    fontFamily: Merriweather\n    fontSize: 19px\n    fontWeight: \u0027400\u0027\n    lineHeight: \u00271.85\u0027\n    letterSpacing: 0.01em\n  ui-body:\n    fontFamily: Inter\n    fontSize: 16px\n    fontWeight: \u0027400\u0027\n    lineHeight: 24px\n  ui-body-sm:\n    fontFamily: Inter\n    fontSize: 14px\n    fontWeight: \u0027400\u0027\n    lineHeight: 20px\n  label-caps:\n    fontFamily: Inter\n    fontSize: 12px\n    fontWeight: \u0027700\u0027\n    lineHeight: 16px\n    letterSpacing: 0.06em\n  mono-reader:\n    fontFamily: JetBrains Mono\n    fontSize: 16px\n    fontWeight: \u0027400\u0027\n    lineHeight: 24px\nrounded:\n  sm: 0.25rem\n  DEFAULT: 0.5rem\n  md: 0.75rem\n  lg: 1rem\n  xl: 1.5rem\n  full: 9999px\nspacing:\n  max-width-content: 1280px\n  max-width-reader: 720px\n  gutter: 1.5rem\n  margin-mobile: 1rem\n  margin-desktop: 3rem\n  stack-xs: 0.25rem\n  stack-sm: 0.75rem\n  stack-md: 1.5rem\n  stack-lg: 3rem\n---\n\n## Brand \u0026 Style\n\nThe design system for the Spanish-market platform, **ReadInn**, is defined by a **Clean Editorial** aesthetic that prioritizes clarity, white space, and a sophisticated literary atmosphere. It targets a modern Spanish-speaking audience that values both the convenience of digital reading and the prestige of traditional publishing.\n\nThe design style is **Minimalism** with **Modern Editorial** influences. The UI serves as a quiet frame for the content, using high-contrast typography and a restricted color palette to evoke a sense of \"focus and discovery.\" The emotional response is one of intellectual clarity—removing visual clutter to honor the writer\u0027s craft while providing a premium, effortless user experience.\n\n## Colors\n\nThe palette is optimized for an \"editorial white\" experience, focusing on a clean, bright background that allows photography and text to breathe.\n\n- **Primary Orange (#F59E0B):** The signature brand color, used for primary calls to action, progress indicators, and \"Start Reading\" triggers. It provides a warm, energetic contrast to the neutral base.\n- **Secondary Slate (#334155):** Used for primary text and interface structural elements. It offers a softer, more sophisticated alternative to pure black.\n- **Indigo Highlights (#4F46E5):** Reserved for interactive utility links, selection states, and meta-data categories to distinguish them from brand-centric orange actions.\n- **Surface Strategy:**\n    - **Light (Predominant):** Uses a pure `#FFFFFF` background for content areas with `#F8FAFC` (Slate 50) for structural grouping.\n    - **Sepia/Papel:** A dedicated Spanish-reading mode using `paper-warm` to reduce eye strain during long-form sessions.\n\n## Typography\n\nThe typographic hierarchy distinguishes between the **Interface** (Spanish navigation and metadata) and the **Reading Experience**.\n\n- **Navigation \u0026 Headings:** Use **Inter**. It is clean, neutral, and professional. Large headlines use \"Extra Bold\" weights with tight tracking to create a modern, impactful editorial look.\n- **The Reader:** The reading core uses **Merriweather**. This serif font is chosen for its \"classic book\" legibility and warmth. For the Spanish market, ensure proper rendering of accents and the \"ñ\".\n- **The Utility:** **JetBrains Mono** is available as an alternative reading font for users who prefer a technical, structured layout.\n\n## Layout \u0026 Spacing\n\nReadInn utilizes a **Fluid Grid** for the dashboard and a strictly **Fixed Grid** for the reader view.\n\n- **Editorial Layout:** A 12-column grid on desktop. Large whitespace margins (`margin-desktop`) are used to create the \"magazine\" feel.\n- **Reading Column:** Content is constrained to a `720px` column to maintain an optimal \"Line Length\" (Longitud de Línea) for comfortable reading.\n- **Breakpoints:**\n    - **Desktop (1024px+):** Full 12-column with wide margins.\n    - **Tablet (768px - 1023px):** 8-column grid, margins reduce to `2rem`.\n    - **Mobile (\u003c767px):** 4-column grid or single-stack, margins at `1rem`. \n- **Vertical Rhythm:** A base-8 system. Use `stack-lg` for section headers (e.g., \"Libros Populares\") and `stack-sm` for internal component spacing.\n\n## Elevation \u0026 Depth\n\nVisual hierarchy is achieved through **Tonal Layers** and **Low-contrast outlines** rather than heavy shadows, preserving the flat editorial aesthetic.\n\n- **Surfaces:** Use `#FFFFFF` for the primary layer. Secondary layers (sidebars, metadata panels) use `#F8FAFC`.\n- **Borders:** Instead of shadows, use `1px` solid borders in a very light slate (`#E2E8F0`) to define cards and containers.\n- **Active Elevation:** Only the primary book covers and main \"Start Reading\" buttons use a soft, tinted ambient shadow (Orange-tinted for buttons) to suggest they are \"lifted\" from the page.\n- **Overlays:** Modals and bottom sheets use a high-blur backdrop (Glassmorphism effect) to maintain the sense of a continuous white environment while focusing the user\u0027s attention.\n\n## Shapes\n\nThe shape language is **Rounded**, creating a welcoming and accessible environment that softens the \"coldness\" of a minimalist white layout.\n\n- **Generic Elements:** Buttons and input fields use `0.5rem` (Rounded).\n- **Book Covers:** Use `rounded-lg` (1rem) to simulate the physical corners of a book.\n- **Tags/Categorías:** Use `rounded-xl` (1.5rem) or pill-shapes to clearly separate genre tags from functional UI buttons.\n\n## Components\n\n- **Botón Primario (Primary Button):** Orange (`#F59E0B`) background with white text. High-contrast, bold Inter typography.\n- **Tarjetas de Libro (Book Cards):** Fixed 2:3 aspect ratio for covers. No borders on the image, but a subtle `0.5rem` radius. Titles in `headline-md` (Slate 800).\n- **Inputs (Campos de Entrada):** White background, `1px` slate-200 border, turning Orange on focus. \n- **Chips de Género:** Light slate background (`#F1F5F9`) with slate-700 text. On selection, they transition to the brand Indigo (`#4F46E5`) with white text.\n- **Control de Lectura (Reader Controls):** Bottom-docked on mobile, top-right on desktop. Uses \"Ghost\" style buttons that only reveal their background on hover.\n- **Indicador de Progreso:** A thin orange line at the top of the reader view, providing non-intrusive feedback on chapter completion.",
+                                                                 "font":  "INTER",
+                                                                 "headlineFont":  "INTER",
+                                                                 "headlineFontFamily":  "Inter",
+                                                                 "labelFont":  "INTER",
+                                                                 "labelFontFamily":  "Inter",
+                                                                 "namedColors":  {
+                                                                                     "background":  "#f7f9fb",
+                                                                                     "error":  "#ba1a1a",
+                                                                                     "error_container":  "#ffdad6",
+                                                                                     "indigo-highlight":  "#6366F1",
+                                                                                     "inverse_on_surface":  "#eff1f3",
+                                                                                     "inverse_primary":  "#ffb95f",
+                                                                                     "inverse_surface":  "#2d3133",
+                                                                                     "on_background":  "#191c1e",
+                                                                                     "on_error":  "#ffffff",
+                                                                                     "on_error_container":  "#93000a",
+                                                                                     "on_primary":  "#ffffff",
+                                                                                     "on_primary_container":  "#613b00",
+                                                                                     "on_primary_fixed":  "#2a1700",
+                                                                                     "on_primary_fixed_variant":  "#653e00",
+                                                                                     "on_secondary":  "#ffffff",
+                                                                                     "on_secondary_container":  "#57657b",
+                                                                                     "on_secondary_fixed":  "#0d1c2f",
+                                                                                     "on_secondary_fixed_variant":  "#3a485c",
+                                                                                     "on_surface":  "#191c1e",
+                                                                                     "on_surface_variant":  "#534434",
+                                                                                     "on_tertiary":  "#ffffff",
+                                                                                     "on_tertiary_container":  "#2f1dc9",
+                                                                                     "on_tertiary_fixed":  "#0f0069",
+                                                                                     "on_tertiary_fixed_variant":  "#3323cc",
+                                                                                     "outline":  "#867461",
+                                                                                     "outline_variant":  "#d8c3ad",
+                                                                                     "paper-text":  "#432818",
+                                                                                     "paper-warm":  "#FBF0D9",
+                                                                                     "primary":  "#855300",
+                                                                                     "primary_container":  "#f59e0b",
+                                                                                     "primary_fixed":  "#ffddb8",
+                                                                                     "primary_fixed_dim":  "#ffb95f",
+                                                                                     "secondary":  "#515f74",
+                                                                                     "secondary_container":  "#d5e3fd",
+                                                                                     "secondary_fixed":  "#d5e3fd",
+                                                                                     "secondary_fixed_dim":  "#b9c7e0",
+                                                                                     "surface":  "#f7f9fb",
+                                                                                     "surface_bright":  "#f7f9fb",
+                                                                                     "surface_container":  "#eceef0",
+                                                                                     "surface_container_high":  "#e6e8ea",
+                                                                                     "surface_container_highest":  "#e0e3e5",
+                                                                                     "surface_container_low":  "#f2f4f6",
+                                                                                     "surface_container_lowest":  "#ffffff",
+                                                                                     "surface_dim":  "#d8dadc",
+                                                                                     "surface_tint":  "#855300",
+                                                                                     "surface_variant":  "#e0e3e5",
+                                                                                     "tertiary":  "#4d44e3",
+                                                                                     "tertiary_container":  "#aaa8ff",
+                                                                                     "tertiary_fixed":  "#e2dfff",
+                                                                                     "tertiary_fixed_dim":  "#c3c0ff"
+                                                                                 },
+                                                                 "overrideNeutralColor":  "#f8fafc",
+                                                                 "overridePrimaryColor":  "#f59e0b",
+                                                                 "overrideSecondaryColor":  "#334155",
+                                                                 "overrideTertiaryColor":  "#4f46e5",
+                                                                 "roundness":  "ROUND_EIGHT",
+                                                                 "spacing":  {
+                                                                                 "gutter":  "1.5rem",
+                                                                                 "margin-desktop":  "3rem",
+                                                                                 "margin-mobile":  "1rem",
+                                                                                 "max-width-content":  "1280px",
+                                                                                 "max-width-reader":  "720px",
+                                                                                 "stack-lg":  "3rem",
+                                                                                 "stack-md":  "1.5rem",
+                                                                                 "stack-sm":  "0.75rem",
+                                                                                 "stack-xs":  "0.25rem"
+                                                                             },
+                                                                 "spacingScale":  2,
+                                                                 "typography":  {
+                                                                                    "headline-lg":  {
+                                                                                                        "fontFamily":  "Inter",
+                                                                                                        "fontSize":  "32px",
+                                                                                                        "fontWeight":  "700",
+                                                                                                        "letterSpacing":  "-0.02em",
+                                                                                                        "lineHeight":  "40px"
+                                                                                                    },
+                                                                                    "headline-lg-mobile":  {
+                                                                                                               "fontFamily":  "Inter",
+                                                                                                               "fontSize":  "28px",
+                                                                                                               "fontWeight":  "700",
+                                                                                                               "lineHeight":  "34px"
+                                                                                                           },
+                                                                                    "headline-md":  {
+                                                                                                        "fontFamily":  "Inter",
+                                                                                                        "fontSize":  "24px",
+                                                                                                        "fontWeight":  "600",
+                                                                                                        "lineHeight":  "32px"
+                                                                                                    },
+                                                                                    "headline-xl":  {
+                                                                                                        "fontFamily":  "Inter",
+                                                                                                        "fontSize":  "48px",
+                                                                                                        "fontWeight":  "800",
+                                                                                                        "letterSpacing":  "-0.03em",
+                                                                                                        "lineHeight":  "56px"
+                                                                                                    },
+                                                                                    "label-caps":  {
+                                                                                                       "fontFamily":  "Inter",
+                                                                                                       "fontSize":  "12px",
+                                                                                                       "fontWeight":  "700",
+                                                                                                       "letterSpacing":  "0.06em",
+                                                                                                       "lineHeight":  "16px"
+                                                                                                   },
+                                                                                    "mono-reader":  {
+                                                                                                        "fontFamily":  "JetBrains Mono",
+                                                                                                        "fontSize":  "16px",
+                                                                                                        "fontWeight":  "400",
+                                                                                                        "lineHeight":  "24px"
+                                                                                                    },
+                                                                                    "reader-body":  {
+                                                                                                        "fontFamily":  "Merriweather",
+                                                                                                        "fontSize":  "19px",
+                                                                                                        "fontWeight":  "400",
+                                                                                                        "letterSpacing":  "0.01em",
+                                                                                                        "lineHeight":  "1.85"
+                                                                                                    },
+                                                                                    "ui-body":  {
+                                                                                                    "fontFamily":  "Inter",
+                                                                                                    "fontSize":  "16px",
+                                                                                                    "fontWeight":  "400",
+                                                                                                    "lineHeight":  "24px"
+                                                                                                },
+                                                                                    "ui-body-sm":  {
+                                                                                                       "fontFamily":  "Inter",
+                                                                                                       "fontSize":  "14px",
+                                                                                                       "fontWeight":  "400",
+                                                                                                       "lineHeight":  "20px"
+                                                                                                   }
+                                                                                }
+                                                             }
+                                               },
+                              "name":  "assets/5e331194de2044f29915e82d218f3d20",
+                              "version":  "1"
+                          },
+                          {
+                              "designSystem":  {
+                                                   "displayName":  "ReadInn Editorial",
+                                                   "styleGuidelines":  "## Brand \u0026 Style\nThe design system for this independent web fiction platform is anchored in **Clean Editorial \u0026 Minimalist Modern** principles. It bridges the gap between the tactile, prestigious feel of traditional publishing (Apple Books) and the fluid, digital-first clarity of modern long-form platforms (Medium).\n\nThe brand personality is intellectual yet accessible, prioritizing the sanctity of the written word. The visual language uses generous whitespace, sophisticated typography, and subtle depth to create a focused, high-end environment for both authors and readers. The emotional response should be one of \"quiet focus\"—removing the chaotic \"social media\" noise often found in fiction platforms to emphasize quality and immersion.\n\nThe aesthetic utilizes **Minimalism** with **Tactile** accents—specifically regarding book covers which act as the primary visual anchors within a clean, grid-based layout.\n\n## Layout \u0026 Spacing\nThis design system employs a **Fluid Grid** for exploration and a **Fixed Column** for reading.\n\n- **Discovery Layout:** A 12-column grid on desktop, scaling down to 1 column on mobile. Work cards use an aspect ratio tailored for book covers (typically 2:3).\n- **Reader Layout:** To ensure optimal reading speed (approx. 50-75 characters per line), the reader content is constrained to a fixed `760px` centered column.\n- **Rhythm:** Spacing follows an 8px base unit. Use `stack-lg` to separate major sections (e.g., Sinopsis from Chapter List) and `stack-sm` for internal card metadata.\n- **Mobile Reflow:** Margins shrink to 16px. The \"Reader Settings\" should transition from a desktop popover to a bottom-sheet on mobile devices.\n\n## Elevation \u0026 Depth\nThe system uses **Tonal Layering** combined with **Ambient Shadows** to create a premium editorial feel.\n\n- **The \"Book Lift\":** Book covers should never appear flat. They use a custom multi-layered shadow: a sharp 2px shadow to define the \"spine\" edge and a soft, diffused 12px shadow to suggest the book is resting on the surface.\n- **Navigation:** Top navigation bars use a background blur (Backdrop Filter) with 90% opacity of the surface color to maintain context while scrolling.\n- **Cards:** Use low-contrast outlines (`1px solid` with 5% opacity of the neutral color) instead of heavy shadows to maintain the minimalist aesthetic.\n- **Floating Actions:** The \"Start Reading\" button and \"Reader Settings\" toggle use a higher elevation (z-index) with a more pronounced shadow to indicate primary interactivity.\n\n## Components\n- **Primary Button:** Indigo background, white text, 500ms transition on hover to `primary-dark`. \n- **Book Cards:** Aspect ratio 2:3. Contains the cover image, title (2 lines max), author name, and a small `secondary-gold` star for rating.\n- **Filter Chips:** Horizontal scrolling on mobile. Unselected: `slate-subtle` background. Selected: `primary-indigo` background with white text.\n- **The Reader UI:** Controls should be \"ghost\" style—appearing only on tap/hover. Use monolinear icons for settings, font size, and theme toggles.\n- **Chapter List:** Clean rows with `ui-body-sm`. Use a vertical line (stepper style) to indicate the reader\u0027s progress through the series.\n- **Sinopsis Card:** Large `1.6` line-height for the summary, utilizing a \"fade-out\" gradient and \"Read More\" button if the text exceeds 4 lines on mobile.",
+                                                   "theme":  {
+                                                                 "bodyFont":  "MERRIWEATHER",
+                                                                 "bodyFontFamily":  "Merriweather",
+                                                                 "colorMode":  "LIGHT",
+                                                                 "colorVariant":  "FIDELITY",
+                                                                 "customColor":  "#6366f1",
+                                                                 "designMd":  "---\nname: ReadInn Editorial\ncolors:\n  surface: \u0027#faf8ff\u0027\n  surface-dim: \u0027#d2d9f4\u0027\n  surface-bright: \u0027#faf8ff\u0027\n  surface-container-lowest: \u0027#ffffff\u0027\n  surface-container-low: \u0027#f2f3ff\u0027\n  surface-container: \u0027#eaedff\u0027\n  surface-container-high: \u0027#e2e7ff\u0027\n  surface-container-highest: \u0027#dae2fd\u0027\n  on-surface: \u0027#131b2e\u0027\n  on-surface-variant: \u0027#464554\u0027\n  inverse-surface: \u0027#283044\u0027\n  inverse-on-surface: \u0027#eef0ff\u0027\n  outline: \u0027#767586\u0027\n  outline-variant: \u0027#c7c4d7\u0027\n  surface-tint: \u0027#494bd6\u0027\n  primary: \u0027#4648d4\u0027\n  on-primary: \u0027#ffffff\u0027\n  primary-container: \u0027#6063ee\u0027\n  on-primary-container: \u0027#fffbff\u0027\n  inverse-primary: \u0027#c0c1ff\u0027\n  secondary: \u0027#855300\u0027\n  on-secondary: \u0027#ffffff\u0027\n  secondary-container: \u0027#fea619\u0027\n  on-secondary-container: \u0027#684000\u0027\n  tertiary: \u0027#904900\u0027\n  on-tertiary: \u0027#ffffff\u0027\n  tertiary-container: \u0027#b55d00\u0027\n  on-tertiary-container: \u0027#fffbff\u0027\n  error: \u0027#ba1a1a\u0027\n  on-error: \u0027#ffffff\u0027\n  error-container: \u0027#ffdad6\u0027\n  on-error-container: \u0027#93000a\u0027\n  primary-fixed: \u0027#e1e0ff\u0027\n  primary-fixed-dim: \u0027#c0c1ff\u0027\n  on-primary-fixed: \u0027#07006c\u0027\n  on-primary-fixed-variant: \u0027#2f2ebe\u0027\n  secondary-fixed: \u0027#ffddb8\u0027\n  secondary-fixed-dim: \u0027#ffb95f\u0027\n  on-secondary-fixed: \u0027#2a1700\u0027\n  on-secondary-fixed-variant: \u0027#653e00\u0027\n  tertiary-fixed: \u0027#ffdcc5\u0027\n  tertiary-fixed-dim: \u0027#ffb783\u0027\n  on-tertiary-fixed: \u0027#301400\u0027\n  on-tertiary-fixed-variant: \u0027#703700\u0027\n  background: \u0027#faf8ff\u0027\n  on-background: \u0027#131b2e\u0027\n  surface-variant: \u0027#dae2fd\u0027\n  paper-warm: \u0027#FBF0D9\u0027\n  paper-text: \u0027#432818\u0027\n  surface-light: \u0027#FFFFFF\u0027\n  surface-dark: \u0027#0F172A\u0027\n  pure-black: \u0027#000000\u0027\n  primary-dark: \u0027#4F46E5\u0027\n  slate-subtle: \u0027#F8FAFC\u0027\ntypography:\n  headline-xl:\n    fontFamily: Inter\n    fontSize: 40px\n    fontWeight: \u0027700\u0027\n    lineHeight: 48px\n    letterSpacing: -0.02em\n  headline-lg:\n    fontFamily: Inter\n    fontSize: 32px\n    fontWeight: \u0027700\u0027\n    lineHeight: 40px\n    letterSpacing: -0.01em\n  headline-lg-mobile:\n    fontFamily: Inter\n    fontSize: 28px\n    fontWeight: \u0027700\u0027\n    lineHeight: 34px\n  headline-md:\n    fontFamily: Inter\n    fontSize: 24px\n    fontWeight: \u0027600\u0027\n    lineHeight: 32px\n  reader-body:\n    fontFamily: Merriweather\n    fontSize: 18px\n    fontWeight: \u0027400\u0027\n    lineHeight: \u00271.8\u0027\n    letterSpacing: 0.01em\n  ui-body:\n    fontFamily: Inter\n    fontSize: 16px\n    fontWeight: \u0027400\u0027\n    lineHeight: 24px\n  ui-body-sm:\n    fontFamily: Inter\n    fontSize: 14px\n    fontWeight: \u0027400\u0027\n    lineHeight: 20px\n  label-caps:\n    fontFamily: Inter\n    fontSize: 12px\n    fontWeight: \u0027600\u0027\n    lineHeight: 16px\n    letterSpacing: 0.05em\n  mono-reader:\n    fontFamily: JetBrains Mono\n    fontSize: 16px\n    fontWeight: \u0027400\u0027\n    lineHeight: 24px\nrounded:\n  sm: 0.25rem\n  DEFAULT: 0.5rem\n  md: 0.75rem\n  lg: 1rem\n  xl: 1.5rem\n  full: 9999px\nspacing:\n  container-max-width: 1280px\n  reader-max-width: 760px\n  gutter: 1.5rem\n  margin-mobile: 1rem\n  margin-desktop: 2.5rem\n  stack-sm: 0.5rem\n  stack-md: 1rem\n  stack-lg: 2rem\n---\n\n## Brand \u0026 Style\nThe design system for this independent web fiction platform is anchored in **Clean Editorial \u0026 Minimalist Modern** principles. It bridges the gap between the tactile, prestigious feel of traditional publishing (Apple Books) and the fluid, digital-first clarity of modern long-form platforms (Medium).\n\nThe brand personality is intellectual yet accessible, prioritizing the sanctity of the written word. The visual language uses generous whitespace, sophisticated typography, and subtle depth to create a focused, high-end environment for both authors and readers. The emotional response should be one of \"quiet focus\"—removing the chaotic \"social media\" noise often found in fiction platforms to emphasize quality and immersion.\n\nThe aesthetic utilizes **Minimalism** with **Tactile** accents—specifically regarding book covers which act as the primary visual anchors within a clean, grid-based layout.\n\n## Colors\nThe palette is built around three distinct environmental modes to ensure reading comfort across any lighting condition.\n\n- **Primary Indigo (#6366F1):** Used for primary actions, branding elements, and progress indicators. It represents the modern, digital nature of the platform.\n- **Accent Gold (#F59E0B):** Reserved for high-value signals such as ratings, premium badges, and \"completed\" status indicators.\n- **Surface Strategy:**\n    - **Light Mode:** Uses `slate-subtle` as the base background with `surface-light` for cards to create subtle elevation.\n    - **Sepia (Paper):** Uses `paper-warm` with `paper-text` to emulate high-quality physical book stock, reducing eye strain.\n    - **Dark/Night:** Uses `surface-dark` for a deep indigo-slate feel, or `pure-black` for OLED devices, paired with high-contrast but softened white text.\n\n## Typography\nThe typographic system creates a clear distinction between **Interface** (Navigation, Meta-data, Buttons) and **Experience** (The actual reading content).\n\n- **UI \u0026 Headings:** Use **Inter**. It provides a neutral, highly legible framework that doesn\u0027t compete with the diverse styles of book covers or the serif reader.\n- **The Reader:** The default experience uses **Merriweather** for its traditional, \"bookish\" feel and excellent legibility at long lengths. \n- **Scale:** Headings use tighter letter spacing and aggressive weights to feel modern. The `reader-body` utilizes a generous 1.8 line-height to maximize immersion and reduce line-tracking fatigue.\n- **Customization:** Users must be able to toggle between Merriweather (Serif), Inter (Sans), and JetBrains Mono (Experimental) within the reader view.\n\n## Layout \u0026 Spacing\nThis design system employs a **Fluid Grid** for exploration and a **Fixed Column** for reading.\n\n- **Discovery Layout:** A 12-column grid on desktop, scaling down to 1 column on mobile. Work cards use an aspect ratio tailored for book covers (typically 2:3).\n- **Reader Layout:** To ensure optimal reading speed (approx. 50-75 characters per line), the reader content is constrained to a fixed `760px` centered column.\n- **Rhythm:** Spacing follows an 8px base unit. Use `stack-lg` to separate major sections (e.g., Sinopsis from Chapter List) and `stack-sm` for internal card metadata.\n- **Mobile Reflow:** Margins shrink to 16px. The \"Reader Settings\" should transition from a desktop popover to a bottom-sheet on mobile devices.\n\n## Elevation \u0026 Depth\nThe system uses **Tonal Layering** combined with **Ambient Shadows** to create a premium editorial feel.\n\n- **The \"Book Lift\":** Book covers should never appear flat. They use a custom multi-layered shadow: a sharp 2px shadow to define the \"spine\" edge and a soft, diffused 12px shadow to suggest the book is resting on the surface.\n- **Navigation:** Top navigation bars use a background blur (Backdrop Filter) with 90% opacity of the surface color to maintain context while scrolling.\n- **Cards:** Use low-contrast outlines (`1px solid` with 5% opacity of the neutral color) instead of heavy shadows to maintain the minimalist aesthetic.\n- **Floating Actions:** The \"Start Reading\" button and \"Reader Settings\" toggle use a higher elevation (z-index) with a more pronounced shadow to indicate primary interactivity.\n\n## Shapes\nThe shape language is **Rounded**, moving away from the sharp edges of technical apps to the softer, more inviting forms of lifestyle and culture apps.\n\n- **Standard Elements:** Buttons, input fields, and chips use a `0.5rem` radius.\n- **Book Covers:** Use `rounded-lg` (1rem) specifically to mimic the slight corner-wear of a high-quality hardcover or trade paperback.\n- **Interactive Chips:** Genre filters use the pill-shape style to differentiate them from functional buttons.\n\n## Components\n- **Primary Button:** Indigo background, white text, 500ms transition on hover to `primary-dark`. \n- **Book Cards:** Aspect ratio 2:3. Contains the cover image, title (2 lines max), author name, and a small `secondary-gold` star for rating.\n- **Filter Chips:** Horizontal scrolling on mobile. Unselected: `slate-subtle` background. Selected: `primary-indigo` background with white text.\n- **The Reader UI:** Controls should be \"ghost\" style—appearing only on tap/hover. Use monolinear icons for settings, font size, and theme toggles.\n- **Chapter List:** Clean rows with `ui-body-sm`. Use a vertical line (stepper style) to indicate the reader\u0027s progress through the series.\n- **Sinopsis Card:** Large `1.6` line-height for the summary, utilizing a \"fade-out\" gradient and \"Read More\" button if the text exceeds 4 lines on mobile.",
+                                                                 "font":  "INTER",
+                                                                 "headlineFont":  "INTER",
+                                                                 "headlineFontFamily":  "Inter",
+                                                                 "labelFont":  "INTER",
+                                                                 "labelFontFamily":  "Inter",
+                                                                 "namedColors":  {
+                                                                                     "background":  "#faf8ff",
+                                                                                     "error":  "#ba1a1a",
+                                                                                     "error_container":  "#ffdad6",
+                                                                                     "inverse_on_surface":  "#eef0ff",
+                                                                                     "inverse_primary":  "#c0c1ff",
+                                                                                     "inverse_surface":  "#283044",
+                                                                                     "on_background":  "#131b2e",
+                                                                                     "on_error":  "#ffffff",
+                                                                                     "on_error_container":  "#93000a",
+                                                                                     "on_primary":  "#ffffff",
+                                                                                     "on_primary_container":  "#fffbff",
+                                                                                     "on_primary_fixed":  "#07006c",
+                                                                                     "on_primary_fixed_variant":  "#2f2ebe",
+                                                                                     "on_secondary":  "#ffffff",
+                                                                                     "on_secondary_container":  "#684000",
+                                                                                     "on_secondary_fixed":  "#2a1700",
+                                                                                     "on_secondary_fixed_variant":  "#653e00",
+                                                                                     "on_surface":  "#131b2e",
+                                                                                     "on_surface_variant":  "#464554",
+                                                                                     "on_tertiary":  "#ffffff",
+                                                                                     "on_tertiary_container":  "#fffbff",
+                                                                                     "on_tertiary_fixed":  "#301400",
+                                                                                     "on_tertiary_fixed_variant":  "#703700",
+                                                                                     "outline":  "#767586",
+                                                                                     "outline_variant":  "#c7c4d7",
+                                                                                     "paper-text":  "#432818",
+                                                                                     "paper-warm":  "#FBF0D9",
+                                                                                     "primary":  "#4648d4",
+                                                                                     "primary-dark":  "#4F46E5",
+                                                                                     "primary_container":  "#6063ee",
+                                                                                     "primary_fixed":  "#e1e0ff",
+                                                                                     "primary_fixed_dim":  "#c0c1ff",
+                                                                                     "pure-black":  "#000000",
+                                                                                     "secondary":  "#855300",
+                                                                                     "secondary_container":  "#fea619",
+                                                                                     "secondary_fixed":  "#ffddb8",
+                                                                                     "secondary_fixed_dim":  "#ffb95f",
+                                                                                     "slate-subtle":  "#F8FAFC",
+                                                                                     "surface":  "#faf8ff",
+                                                                                     "surface-dark":  "#0F172A",
+                                                                                     "surface-light":  "#FFFFFF",
+                                                                                     "surface_bright":  "#faf8ff",
+                                                                                     "surface_container":  "#eaedff",
+                                                                                     "surface_container_high":  "#e2e7ff",
+                                                                                     "surface_container_highest":  "#dae2fd",
+                                                                                     "surface_container_low":  "#f2f3ff",
+                                                                                     "surface_container_lowest":  "#ffffff",
+                                                                                     "surface_dim":  "#d2d9f4",
+                                                                                     "surface_tint":  "#494bd6",
+                                                                                     "surface_variant":  "#dae2fd",
+                                                                                     "tertiary":  "#904900",
+                                                                                     "tertiary_container":  "#b55d00",
+                                                                                     "tertiary_fixed":  "#ffdcc5",
+                                                                                     "tertiary_fixed_dim":  "#ffb783"
+                                                                                 },
+                                                                 "overrideNeutralColor":  "#0f172a",
+                                                                 "overridePrimaryColor":  "#6366f1",
+                                                                 "overrideSecondaryColor":  "#f59e0b",
+                                                                 "roundness":  "ROUND_EIGHT",
+                                                                 "spacing":  {
+                                                                                 "container-max-width":  "1280px",
+                                                                                 "gutter":  "1.5rem",
+                                                                                 "margin-desktop":  "2.5rem",
+                                                                                 "margin-mobile":  "1rem",
+                                                                                 "reader-max-width":  "760px",
+                                                                                 "stack-lg":  "2rem",
+                                                                                 "stack-md":  "1rem",
+                                                                                 "stack-sm":  "0.5rem"
+                                                                             },
+                                                                 "spacingScale":  2,
+                                                                 "typography":  {
+                                                                                    "headline-lg":  {
+                                                                                                        "fontFamily":  "Inter",
+                                                                                                        "fontSize":  "32px",
+                                                                                                        "fontWeight":  "700",
+                                                                                                        "letterSpacing":  "-0.01em",
+                                                                                                        "lineHeight":  "40px"
+                                                                                                    },
+                                                                                    "headline-lg-mobile":  {
+                                                                                                               "fontFamily":  "Inter",
+                                                                                                               "fontSize":  "28px",
+                                                                                                               "fontWeight":  "700",
+                                                                                                               "lineHeight":  "34px"
+                                                                                                           },
+                                                                                    "headline-md":  {
+                                                                                                        "fontFamily":  "Inter",
+                                                                                                        "fontSize":  "24px",
+                                                                                                        "fontWeight":  "600",
+                                                                                                        "lineHeight":  "32px"
+                                                                                                    },
+                                                                                    "headline-xl":  {
+                                                                                                        "fontFamily":  "Inter",
+                                                                                                        "fontSize":  "40px",
+                                                                                                        "fontWeight":  "700",
+                                                                                                        "letterSpacing":  "-0.02em",
+                                                                                                        "lineHeight":  "48px"
+                                                                                                    },
+                                                                                    "label-caps":  {
+                                                                                                       "fontFamily":  "Inter",
+                                                                                                       "fontSize":  "12px",
+                                                                                                       "fontWeight":  "600",
+                                                                                                       "letterSpacing":  "0.05em",
+                                                                                                       "lineHeight":  "16px"
+                                                                                                   },
+                                                                                    "mono-reader":  {
+                                                                                                        "fontFamily":  "JetBrains Mono",
+                                                                                                        "fontSize":  "16px",
+                                                                                                        "fontWeight":  "400",
+                                                                                                        "lineHeight":  "24px"
+                                                                                                    },
+                                                                                    "reader-body":  {
+                                                                                                        "fontFamily":  "Merriweather",
+                                                                                                        "fontSize":  "18px",
+                                                                                                        "fontWeight":  "400",
+                                                                                                        "letterSpacing":  "0.01em",
+                                                                                                        "lineHeight":  "1.8"
+                                                                                                    },
+                                                                                    "ui-body":  {
+                                                                                                    "fontFamily":  "Inter",
+                                                                                                    "fontSize":  "16px",
+                                                                                                    "fontWeight":  "400",
+                                                                                                    "lineHeight":  "24px"
+                                                                                                },
+                                                                                    "ui-body-sm":  {
+                                                                                                       "fontFamily":  "Inter",
+                                                                                                       "fontSize":  "14px",
+                                                                                                       "fontWeight":  "400",
+                                                                                                       "lineHeight":  "20px"
+                                                                                                   }
+                                                                                }
+                                                             }
+                                               },
+                              "name":  "assets/f186e3c614c842259074f1a0a3e8f456",
+                              "version":  "3"
+                          }
+                      ]
+}

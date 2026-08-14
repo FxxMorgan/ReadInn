@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/story.dart';
+import '../providers/auth_provider.dart';
 import '../providers/story_providers.dart';
 import '../theme/app_theme.dart';
 
@@ -37,7 +38,7 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
     'Fantasía',
     'Romance',
     'Terror',
-    'Drama'
+    'Drama',
   ];
 
   static const coverColors = [
@@ -46,7 +47,7 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
     '#7F4F24',
     '#4F46E5',
     '#059669',
-    '#DC2626'
+    '#DC2626',
   ];
 
   @override
@@ -79,9 +80,9 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
             children: [
               Text(
                 'Crear Nueva Obra',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
@@ -160,7 +161,9 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
                     color: color,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isSelected ? ReadInnColors.primary : Colors.transparent,
+                      color: isSelected
+                          ? ReadInnColors.primary
+                          : Colors.transparent,
                       width: isSelected ? 3 : 0,
                     ),
                   ),
@@ -187,7 +190,9 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
                           _synopsisController.text.trim().isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Por favor completa el título y la sinopsis'),
+                            content: Text(
+                              'Por favor completa el título y la sinopsis',
+                            ),
                           ),
                         );
                         return;
@@ -195,18 +200,17 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
 
                       setState(() => _isLoading = true);
 
-                      final createdStory = StorySummary(
-                        id: 'story-${DateTime.now().millisecondsSinceEpoch}',
-                        title: _titleController.text.trim(),
-                        author: 'Marina Solís',
-                        authorUsername: 'marina-solis',
-                        synopsis: _synopsisController.text.trim(),
-                        genre: _selectedGenre,
-                        status: 'published',
-                        chapterCount: 0,
-                        isMature: _isMature,
-                        coverColor: _coverColor,
-                      );
+                      final auth = ref.read(authProvider);
+                      final createdStory = await ref
+                          .read(apiServiceProvider)
+                          .createStory(
+                            title: _titleController.text.trim(),
+                            synopsis: _synopsisController.text.trim(),
+                            genre: _selectedGenre,
+                            isMature: _isMature,
+                            coverColor: _coverColor,
+                            token: auth.token,
+                          );
 
                       if (context.mounted) {
                         ref.invalidate(storiesProvider);

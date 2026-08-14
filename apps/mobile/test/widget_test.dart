@@ -7,16 +7,12 @@ void main() {
   testWidgets('ReadInnApp smoke test', (WidgetTester tester) async {
     SharedPreferences.setMockInitialValues({});
 
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: ReadInnApp(),
-      ),
-    );
+    await tester.pumpWidget(const ProviderScope(child: ReadInnApp()));
 
     // Allow async providers and animations to settle
     await tester.pumpAndSettle();
 
     expect(find.text('ReadInn'), findsOneWidget);
-    expect(find.text('Explorar historias'), findsOneWidget);
+    expect(find.text('Historias para perderse'), findsOneWidget);
   });
 }

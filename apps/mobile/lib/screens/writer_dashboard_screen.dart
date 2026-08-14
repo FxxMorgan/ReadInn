@@ -1,229 +1,138 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../theme/app_theme.dart';
+import '../widgets/readinn_widgets.dart';
 import 'create_story_dialog.dart';
 
-class WriterDashboardScreen extends ConsumerWidget {
+class WriterDashboardScreen extends StatelessWidget {
   const WriterDashboardScreen({super.key});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Panel del Escritor',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Writer Welcome Header & Primary CTA
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '¡Hola, Marina!',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Gestiona tus historias y revisa tus estadísticas',
-                        style: TextStyle(
-                          color: isDark
-                              ? ReadInnColors.darkSubtext
-                              : ReadInnColors.onSurfaceVariant,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: ReadInnColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Nueva Obra'),
-                    onPressed: () async {
-                      final newStory = await CreateStoryDialog.show(context);
-                      if (newStory != null && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('¡Obra "${newStory.title}" creada exitosamente!')),
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Analytics KPI Grid (Stitch Spec)
-              Text(
-                'Rendimiento este mes',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              GridView.count(
-                crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.4,
-                children: const [
-                  _KpiCard(
-                    title: 'Total Lecturas',
-                    value: '24,580',
-                    trend: '+12.4%',
-                    isPositive: true,
-                    icon: Icons.remove_red_eye_outlined,
-                  ),
-                  _KpiCard(
-                    title: 'Lectores Únicos',
-                    value: '8,210',
-                    trend: '+8.1%',
-                    isPositive: true,
-                    icon: Icons.group_outlined,
-                  ),
-                  _KpiCard(
-                    title: 'Tiempo Promedio',
-                    value: '6.4 min',
-                    trend: '+0.5m',
-                    isPositive: true,
-                    icon: Icons.timer_outlined,
-                  ),
-                  _KpiCard(
-                    title: 'Seguidores',
-                    value: '1,240',
-                    trend: '+45 este mes',
-                    isPositive: true,
-                    icon: Icons.favorite_border_rounded,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-              // Stories Tabs & Management
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Mis Historias',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: const Text('Ver todas'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Author's Stories List (Stitch Naranja Panel)
-              _WriterStoryTile(
-                title: 'La luz del faro',
-                genre: 'Misterio',
-                status: 'Publicado',
-                chaptersCount: 3,
-                viewsCount: '18.4K',
-                coverColor: const Color(0xFF1F5F73),
-              ),
-              const SizedBox(height: 12),
-              _WriterStoryTile(
-                title: 'Cartas a la niebla',
-                genre: 'Drama',
-                status: 'Borrador',
-                chaptersCount: 1,
-                viewsCount: '0',
-                coverColor: const Color(0xFF7F4F24),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  Future<void> _createStory(BuildContext context) async {
+    final story = await CreateStoryDialog.show(context);
+    if (story != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('La obra "${story.title}" fue creada.')),
+      );
+    }
   }
-}
-
-class _KpiCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String trend;
-  final bool isPositive;
-  final IconData icon;
-
-  const _KpiCard({
-    required this.title,
-    required this.value,
-    required this.trend,
-    required this.isPositive,
-    required this.icon,
-  });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
+    return ReadInnShell(
+      currentIndex: 2,
+      actions: [
+        IconButton(
+          tooltip: 'Notificaciones',
+          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No tienes notificaciones nuevas.')),
+          ),
+          icon: const Icon(Icons.notifications_none_rounded),
+        ),
+        const SizedBox(width: 8),
+      ],
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: ReadInnColors.primary,
+        foregroundColor: ReadInnColors.ink,
+        tooltip: 'Nueva obra',
+        onPressed: () => _createStory(context),
+        child: const Icon(Icons.add),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 22, 16, 28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: ReadInnColors.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
+            Text(
+              'Escritorio de creador',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Gestiona tus historias y conecta con tus lectores.',
+              style: TextStyle(color: ReadInnColors.muted),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _createStory(context),
+                icon: const Icon(Icons.add),
+                label: const Text('Nueva obra'),
+              ),
+            ),
+            const SizedBox(height: 28),
+            SectionHeader(
+              title: 'Rendimiento',
+              actionLabel: 'Ver estadísticas',
+              onAction: () => context.go('/writer/analytics'),
+            ),
+            const SizedBox(height: 12),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.25,
+              children: const [
+                MetricTile(
+                  label: 'Lecturas totales',
+                  value: '124.5K',
+                  delta: '+12.4%',
+                  icon: Icons.visibility_outlined,
                 ),
-                Icon(icon, size: 16, color: ReadInnColors.primary),
+                MetricTile(
+                  label: 'Seguidores',
+                  value: '842',
+                  delta: '+8.1%',
+                  icon: Icons.people_outline,
+                ),
+                MetricTile(
+                  label: 'Tiempo medio',
+                  value: '18m',
+                  delta: '+2.3m',
+                  icon: Icons.timer_outlined,
+                ),
+                MetricTile(
+                  label: 'Comentarios',
+                  value: '2,480',
+                  delta: '+18%',
+                  icon: Icons.chat_bubble_outline,
+                ),
               ],
             ),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            const SizedBox(height: 28),
+            SectionHeader(
+              title: 'Mis obras',
+              actionLabel: 'Ver todas',
+              onAction: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Mostrando tus obras publicadas.'),
+                ),
               ),
             ),
-            Text(
-              trend,
-              style: const TextStyle(
-                fontSize: 10,
-                color: Colors.green,
-                fontWeight: FontWeight.bold,
-              ),
+            const SizedBox(height: 12),
+            const _WriterStoryCard(
+              title: 'The Architect\'s Dream',
+              subtitle: 'Misterio · 12 capítulos',
+              status: 'Publicado',
+              asset: 'assets/images/writers_dream.jpg',
+            ),
+            const SizedBox(height: 12),
+            const _WriterStoryCard(
+              title: 'Echoes of the Valley',
+              subtitle: 'Drama · 45 partes',
+              status: 'Publicado',
+              asset: 'assets/images/echo_valley.jpg',
+            ),
+            const SizedBox(height: 12),
+            const _WriterStoryCard(
+              title: 'Silent Whispers',
+              subtitle: 'Fantasía · 12 partes',
+              status: 'Borrador',
+              asset: 'assets/images/silent_whispers.jpg',
             ),
           ],
         ),
@@ -232,89 +141,89 @@ class _KpiCard extends StatelessWidget {
   }
 }
 
-class _WriterStoryTile extends StatelessWidget {
+class _WriterStoryCard extends StatelessWidget {
   final String title;
-  final String genre;
+  final String subtitle;
   final String status;
-  final int chaptersCount;
-  final String viewsCount;
-  final Color coverColor;
+  final String asset;
 
-  const _WriterStoryTile({
+  const _WriterStoryCard({
     required this.title,
-    required this.genre,
+    required this.subtitle,
     required this.status,
-    required this.chaptersCount,
-    required this.viewsCount,
-    required this.coverColor,
+    required this.asset,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isPublished = status == 'Publicado';
-
+    final published = status == 'Publicado';
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            Container(
-              width: 50,
-              height: 70,
-              decoration: BoxDecoration(
-                color: coverColor,
-                borderRadius: BorderRadius.circular(6),
-                boxShadow: [ReadInnColors.bookShadow],
-              ),
-            ),
+            BookCover(title: title, asset: asset, width: 58, height: 86),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isPublished
-                              ? Colors.green.withValues(alpha: 0.15)
-                              : Colors.orange.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            color: isPublished ? Colors.green : Colors.orange,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: published
+                          ? const Color(0xFFE8F5E9)
+                          : ReadInnColors.softOrange,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      status,
+                      style: TextStyle(
+                        color: published
+                            ? const Color(0xFF15803D)
+                            : ReadInnColors.primaryDeep,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        genre,
-                        style: const TextStyle(fontSize: 11, color: ReadInnColors.outline),
-                      ),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Text(
                     title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$chaptersCount capítulos • $viewsCount lecturas',
-                    style: const TextStyle(fontSize: 12, color: ReadInnColors.onSurfaceVariant),
+                    subtitle,
+                    style: const TextStyle(
+                      color: ReadInnColors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Actualizado hace 2 días',
+                    style: TextStyle(color: ReadInnColors.muted, fontSize: 11),
                   ),
                 ],
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Editar historia',
-              onPressed: () {},
+              tooltip: 'Editar obra',
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'La edicion de obras se habilitara desde el editor.',
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.more_vert_rounded),
             ),
           ],
         ),
