@@ -209,6 +209,8 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
                             genre: _selectedGenre,
                             isMature: _isMature,
                             coverColor: _coverColor,
+                            authorName: auth.user?.displayName ?? 'Invitado',
+                            authorUsername: auth.user?.username ?? 'invitado',
                             token: auth.token,
                           );
 

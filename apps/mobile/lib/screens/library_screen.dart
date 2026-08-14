@@ -12,6 +12,7 @@ class LibraryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storiesAsync = ref.watch(libraryProvider);
+    final progressAsync = ref.watch(readingProgressListProvider);
     final auth = ref.watch(authProvider);
     return ReadInnShell(
       currentIndex: 1,
@@ -70,21 +71,47 @@ class LibraryScreen extends ConsumerWidget {
                       },
                     ),
                   ),
-                  ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      const _ReadingProgressTile(),
-                      const SizedBox(height: 12),
-                      _ReadingProgressTile(
-                        title: 'La ciudad en silencio',
-                        chapter: 'Capítulo 1 · A las 23:17',
-                        progress: 0.28,
-                        asset: 'assets/images/project_horizon.jpg',
-                        onTap: () => context.push(
-                          '/story/story-quiet-city/read/chapter-quiet-city-1',
-                        ),
-                      ),
-                    ],
+                  progressAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, _) => Center(
+                      child: Text('No se pudo cargar tu progreso: $error'),
+                    ),
+                    data: (items) {
+                      if (items.isEmpty) {
+                        return const Center(
+                          child: Text('Aún no has comenzado ninguna historia.'),
+                        );
+                      }
+                      return ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: items.length,
+                        separatorBuilder: (_, index) =>
+                            const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          final storyId = item['storyId']?.toString() ?? '';
+                          final chapterId = item['chapterId']?.toString() ?? '';
+                          final percentage =
+                              (item['progressPercentage'] as num?)
+                                  ?.toDouble() ??
+                              0;
+                          return _ReadingProgressTile(
+                            title: item['storyTitle']?.toString() ?? 'Historia',
+                            chapter: 'Último capítulo leído',
+                            progress: (percentage / 100).clamp(0.0, 1.0),
+                            asset: index.isEven
+                                ? 'assets/images/silver_feather.jpg'
+                                : 'assets/images/project_horizon.jpg',
+                            onTap: storyId.isEmpty || chapterId.isEmpty
+                                ? null
+                                : () => context.push(
+                                    '/story/$storyId/read/$chapterId',
+                                  ),
+                          );
+                        },
+                      );
+                    },
                   ),
                 ],
               ),
@@ -179,21 +206,18 @@ class _ReadingProgressTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _ReadingProgressTile({
-    this.title = 'La luz del faro',
-    this.chapter = 'Capítulo 1 · El mapa bajo la sal',
-    this.progress = 0.65,
-    this.asset = 'assets/images/silver_feather.jpg',
-    this.onTap,
+    required this.title,
+    required this.chapter,
+    required this.progress,
+    required this.asset,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
-        onTap:
-            onTap ??
-            () =>
-                context.go('/story/story-lighthouse/read/chapter-lighthouse-1'),
+        onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(12),

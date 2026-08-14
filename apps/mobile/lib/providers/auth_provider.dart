@@ -10,12 +10,14 @@ class UserAccount {
   final String email;
   final String username;
   final String displayName;
+  final String bio;
 
   const UserAccount({
     required this.id,
     required this.email,
     required this.username,
     required this.displayName,
+    this.bio = '',
   });
 
   factory UserAccount.fromJson(Map<String, dynamic> json) => UserAccount(
@@ -26,6 +28,7 @@ class UserAccount {
         json['displayName'] as String? ??
         json['username'] as String? ??
         'Usuario',
+    bio: json['bio'] as String? ?? '',
   );
 
   Map<String, dynamic> toJson() => {
@@ -33,6 +36,7 @@ class UserAccount {
     'email': email,
     'username': username,
     'displayName': displayName,
+    'bio': bio,
   };
 }
 
@@ -151,6 +155,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
     state = const AuthState();
+  }
+
+  Future<bool> updateProfile({
+    required String displayName,
+    required String bio,
+  }) async {
+    final current = state.user;
+    final token = state.token;
+    if (current == null || token == null) return false;
+    try {
+      final data = await _apiService.updateProfile(
+        displayName: displayName,
+        bio: bio,
+        token: token,
+      );
+      final updated = UserAccount(
+        id: current.id,
+        email: current.email,
+        username: current.username,
+        displayName: data['displayName'] as String? ?? displayName,
+        bio: data['bio'] as String? ?? bio,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_userKey, jsonEncode(updated.toJson()));
+      state = AuthState(isAuthenticated: true, user: updated, token: token);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }
 

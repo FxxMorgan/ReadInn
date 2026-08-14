@@ -29,6 +29,22 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(6),
 });
 
+const profileUpdateSchema = z.object({
+  displayName: z.string().trim().min(2).max(50).optional(),
+  bio: z.string().trim().max(500).optional(),
+});
+
+function bearerUserId(authorization?: string): string | null {
+  const token = authorization?.replace(/^Bearer\s+/i, '');
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf8')) as { userId?: string };
+    return payload.userId ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
@@ -45,23 +61,27 @@ function verifyPassword(password: string, storedHash: string): boolean {
 export function registerAuthRoutes(app: FastifyInstance): void {
   // Register
   app.post('/v1/auth/register', async (request, reply) => {
+    const body = registerSchema.parse(request.body);
     const isDbConnected = await checkDatabaseConnection();
     if (!isDbConnected) {
+      const token = Buffer.from(JSON.stringify({
+        userId: `user-${body.username}`,
+        email: body.email,
+        type: 'access',
+      })).toString('base64');
       return reply.status(201).send({
         data: {
           user: {
-            id: 'user-mock-1',
-            email: 'usuario@readinn.app',
-            username: 'nuevo-lector',
-            displayName: 'Nuevo Lector',
+            id: `user-${body.username}`,
+            email: body.email,
+            username: body.username,
+            displayName: body.displayName ?? body.username,
           },
-          token: 'mock-jwt-token-readinn-12345',
+          token,
           refreshToken: 'mock-refresh-token-12345',
         },
       });
     }
-
-    const body = registerSchema.parse(request.body);
 
     const existingUser = await prisma.user.findFirst({
       where: {
@@ -111,10 +131,15 @@ export function registerAuthRoutes(app: FastifyInstance): void {
 
   // Login
   app.post('/v1/auth/login', async (request) => {
+    const body = loginSchema.parse(request.body);
     const isDbConnected = await checkDatabaseConnection();
     if (!isDbConnected) {
-      const body = loginSchema.parse(request.body);
       const username = body.email.split('@')[0] || 'lector';
+      const token = Buffer.from(JSON.stringify({
+        userId: `user-${username}`,
+        email: body.email,
+        type: 'access',
+      })).toString('base64');
       return {
         data: {
           user: {
@@ -123,13 +148,11 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             username,
             displayName: username,
           },
-          token: `mock-jwt-token-${username}`,
+          token,
           refreshToken: `mock-refresh-token-${username}`,
         },
       };
     }
-
-    const body = loginSchema.parse(request.body);
 
     const user = await prisma.user.findUnique({
       where: { email: body.email },
@@ -226,12 +249,71 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       };
     }
 
+    const userId = bearerUserId(authHeader);
+    if (userId && (await checkDatabaseConnection())) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { profile: true },
+      });
+      if (user) {
+        return {
+          data: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            displayName: user.profile?.displayName ?? user.username,
+            bio: user.profile?.bio ?? '',
+          },
+        };
+      }
+    }
     return {
       data: {
-        id: 'user-marina-1',
-        email: 'marina@readinn.app',
-        username: 'marina-solis',
-        displayName: 'Marina Solís',
+        id: userId ?? 'user-guest',
+        email: '',
+        username: 'invitado',
+        displayName: 'Invitado',
+        bio: '',
+      },
+    };
+  });
+
+  app.patch('/v1/auth/me', async (request, reply) => {
+    const userId = bearerUserId(request.headers.authorization);
+    const body = profileUpdateSchema.parse(request.body);
+    if (!userId) {
+      return reply.status(401).send({
+        error: {
+          code: 'AUTH_REQUIRED',
+          message: 'Inicia sesion para editar el perfil.',
+        },
+      });
+    }
+    if (await checkDatabaseConnection()) {
+      const update: { displayName?: string; bio?: string } = {};
+      if (body.displayName !== undefined) update.displayName = body.displayName;
+      if (body.bio !== undefined) update.bio = body.bio;
+      const profile = await prisma.userProfile.upsert({
+        where: { userId },
+        update,
+        create: {
+          userId,
+          displayName: body.displayName ?? 'Usuario',
+          bio: body.bio ?? '',
+          locale: 'es',
+        },
+      });
+      return {
+        data: {
+          displayName: profile.displayName,
+          bio: profile.bio ?? '',
+        },
+      };
+    }
+    return {
+      data: {
+        displayName: body.displayName ?? 'Usuario',
+        bio: body.bio ?? '',
       },
     };
   });

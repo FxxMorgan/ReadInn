@@ -8,8 +8,23 @@ import '../theme/app_theme.dart';
 import '../widgets/readinn_widgets.dart';
 import 'auth_dialog.dart';
 
-class ExploreScreen extends ConsumerWidget {
+class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
+
+  @override
+  ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
+}
+
+class _ExploreScreenState extends ConsumerState<ExploreScreen> {
+  final _searchFocusNode = FocusNode();
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
 
   static const categories = [
     'Todos',
@@ -30,118 +45,146 @@ class ExploreScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final storiesAsync = ref.watch(storiesProvider);
     final selectedGenre = ref.watch(selectedGenreProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
+    final showAll = ref.watch(showAllStoriesProvider);
     final auth = ref.watch(authProvider);
 
-    return ReadInnShell(
-      currentIndex: 0,
-      actions: [
-        IconButton(
-          tooltip: 'Buscar',
-          onPressed: () => FocusScope.of(context).requestFocus(FocusNode()),
-          icon: const Icon(Icons.search_rounded),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: auth.isAuthenticated
-              ? CircleAvatar(
-                  radius: 16,
-                  backgroundColor: ReadInnColors.indigo,
-                  child: Text(
-                    (auth.user?.displayName ?? 'M').substring(0, 1),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                )
-              : IconButton(
-                  tooltip: 'Iniciar sesión',
-                  icon: const Icon(Icons.person_outline),
-                  onPressed: () => AuthDialog.show(context),
-                ),
-        ),
-      ],
-      child: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(storiesProvider),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Historias para perderse',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Descubre voces nuevas y vuelve a tus mundos favoritos.',
-                style: TextStyle(color: ReadInnColors.muted),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                onChanged: (value) =>
-                    ref.read(searchQueryProvider.notifier).state = value,
-                decoration: const InputDecoration(
-                  hintText: 'Buscar historias, autores...',
-                  prefixIcon: Icon(Icons.search_rounded),
-                ),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 38,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: categories.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 8),
-                  itemBuilder: (_, index) {
-                    final category = categories[index];
-                    final selected = selectedGenre == category;
-                    return ChoiceChip(
-                      label: Text(category),
-                      selected: selected,
-                      selectedColor: ReadInnColors.indigo,
-                      labelStyle: TextStyle(
-                        color: selected ? Colors.white : ReadInnColors.ink,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+    return PopScope(
+      canPop: searchQuery.trim().isEmpty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || searchQuery.trim().isEmpty) return;
+        _searchController.clear();
+        _searchFocusNode.unfocus();
+        ref.read(searchQueryProvider.notifier).state = '';
+      },
+      child: ReadInnShell(
+        currentIndex: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Buscar',
+            onPressed: () => _searchFocusNode.requestFocus(),
+            icon: const Icon(Icons.search_rounded),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: auth.isAuthenticated
+                ? CircleAvatar(
+                    radius: 16,
+                    backgroundColor: ReadInnColors.primaryDeep,
+                    child: Text(
+                      (auth.user?.displayName ?? 'U').substring(0, 1),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
                       ),
-                      onSelected: (_) =>
-                          ref.read(selectedGenreProvider.notifier).state =
-                              category,
-                    );
-                  },
+                    ),
+                  )
+                : IconButton(
+                    tooltip: 'Iniciar sesión',
+                    icon: const Icon(Icons.person_outline),
+                    onPressed: () => AuthDialog.show(context),
+                  ),
+          ),
+        ],
+        child: RefreshIndicator(
+          onRefresh: () async => ref.invalidate(storiesProvider),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Historias para perderse',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 28),
-              _EditorPick(onTap: () => context.push('/story/story-lighthouse')),
-              const SizedBox(height: 30),
-              SectionHeader(
-                title: 'Tendencias',
-                actionLabel: 'Ver todo',
-                onAction: () =>
-                    FocusScope.of(context).requestFocus(FocusNode()),
-              ),
-              const SizedBox(height: 14),
-              storiesAsync.when(
-                loading: () => const SizedBox(
-                  height: 220,
-                  child: Center(child: CircularProgressIndicator()),
+                const SizedBox(height: 6),
+                const Text(
+                  'Descubre voces nuevas y vuelve a tus mundos favoritos.',
+                  style: TextStyle(color: ReadInnColors.muted),
                 ),
-                error: (error, _) =>
-                    Text('No pudimos cargar las historias: $error'),
-                data: (stories) =>
-                    _StoryGrid(stories: stories, coverColor: _coverColor),
-              ),
-              const SizedBox(height: 28),
-              _QuoteCard(),
-            ],
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  onChanged: (value) =>
+                      ref.read(searchQueryProvider.notifier).state = value,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar historias, autores...',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: searchQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Limpiar búsqueda',
+                            onPressed: () {
+                              _searchController.clear();
+                              ref.read(searchQueryProvider.notifier).state = '';
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: categories.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(width: 8),
+                    itemBuilder: (_, index) {
+                      final category = categories[index];
+                      final selected = selectedGenre == category;
+                      return ChoiceChip(
+                        label: Text(category),
+                        selected: selected,
+                        selectedColor: ReadInnColors.indigo,
+                        labelStyle: TextStyle(
+                          color: selected ? Colors.white : ReadInnColors.ink,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onSelected: (_) =>
+                            ref.read(selectedGenreProvider.notifier).state =
+                                category,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 28),
+                _EditorPick(
+                  onTap: () => context.push('/story/story-lighthouse'),
+                ),
+                const SizedBox(height: 30),
+                SectionHeader(
+                  title: 'Tendencias',
+                  actionLabel: showAll ? 'Ver menos' : 'Ver todo',
+                  onAction: () =>
+                      ref.read(showAllStoriesProvider.notifier).state =
+                          !showAll,
+                ),
+                const SizedBox(height: 14),
+                storiesAsync.when(
+                  loading: () => const SizedBox(
+                    height: 220,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (error, _) =>
+                      Text('No pudimos cargar las historias: $error'),
+                  data: (stories) => _StoryGrid(
+                    stories: stories,
+                    coverColor: _coverColor,
+                    showAll: showAll,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -215,12 +258,17 @@ class _EditorPick extends StatelessWidget {
 class _StoryGrid extends StatelessWidget {
   final List<StorySummary> stories;
   final Color Function(String) coverColor;
+  final bool showAll;
 
-  const _StoryGrid({required this.stories, required this.coverColor});
+  const _StoryGrid({
+    required this.stories,
+    required this.coverColor,
+    required this.showAll,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final visible = stories.isEmpty ? <StorySummary>[] : stories;
+    final visible = showAll ? stories : stories.take(4).toList();
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth > 700
@@ -313,37 +361,6 @@ class _StoryGrid extends StatelessWidget {
           },
         );
       },
-    );
-  }
-}
-
-class _QuoteCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: ReadInnColors.softIndigo,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.format_quote_rounded, color: ReadInnColors.indigo),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Las mejores historias no piden permiso: encuentran una puerta y la abren.',
-              style: TextStyle(
-                color: ReadInnColors.ink,
-                height: 1.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

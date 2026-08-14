@@ -1,6 +1,8 @@
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
 import { storyFixtures, chapterFixtures, type StorySummary } from './story-fixtures.js';
 
+const offlineStoriesByAuthor = new Map<string, StorySummary[]>();
+
 export interface CreateStoryParams {
   authorId: string;
   title: string;
@@ -21,7 +23,7 @@ export class WriterRepository {
     const isDbConnected = await checkDatabaseConnection();
 
     if (!isDbConnected) {
-      return storyFixtures;
+      return offlineStoriesByAuthor.get(authorId) ?? [];
     }
 
     const stories = await prisma.story.findMany({
@@ -60,8 +62,8 @@ export class WriterRepository {
       const newStory: StorySummary = {
         id: `story-${Date.now()}`,
         title: params.title,
-        author: 'Marina Solís',
-        authorUsername: 'marina-solis',
+        author: params.authorId.startsWith('user-') ? params.authorId : 'Nuevo escritor',
+        authorUsername: params.authorId,
         synopsis: params.synopsis,
         genre: params.genre,
         status: 'published',
@@ -70,6 +72,9 @@ export class WriterRepository {
         coverColor: params.coverColor ?? '#855300',
       };
       storyFixtures.unshift(newStory);
+      const userStories = offlineStoriesByAuthor.get(params.authorId) ?? [];
+      userStories.unshift(newStory);
+      offlineStoriesByAuthor.set(params.authorId, userStories);
       return newStory;
     }
 

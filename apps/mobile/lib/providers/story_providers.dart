@@ -10,6 +10,7 @@ final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
 final selectedGenreProvider = StateProvider<String>((ref) => 'Todos');
+final showAllStoriesProvider = StateProvider<bool>((ref) => false);
 
 final storiesProvider = FutureProvider<List<StorySummary>>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
@@ -45,6 +46,42 @@ final chapterCommentsProvider =
 final libraryProvider = FutureProvider<List<StorySummary>>((ref) {
   final token = ref.watch(authProvider.select((auth) => auth.token));
   return ref.watch(apiServiceProvider).fetchLibrary(token: token);
+});
+
+final writerStoriesProvider = FutureProvider<List<StorySummary>>((ref) {
+  final token = ref.watch(authProvider.select((auth) => auth.token));
+  return ref.watch(apiServiceProvider).fetchWriterStories(token: token);
+});
+
+final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) {
+  final token = ref.watch(authProvider.select((auth) => auth.token));
+  return ref.watch(apiServiceProvider).fetchDashboardMetrics(token: token);
+});
+
+final storyEngagementProvider = FutureProvider.family<StoryEngagement, String>((
+  ref,
+  storyId,
+) {
+  final token = ref.watch(authProvider.select((auth) => auth.token));
+  return ref
+      .watch(apiServiceProvider)
+      .fetchStoryEngagement(storyId, token: token);
+});
+
+final readingProgressProvider = FutureProvider.family<ReadingProgress?, String>(
+  (ref, storyId) {
+    final token = ref.watch(authProvider.select((auth) => auth.token));
+    return ref
+        .watch(apiServiceProvider)
+        .fetchReadingProgress(storyId, token: token);
+  },
+);
+
+final readingProgressListProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
+  final token = ref.watch(authProvider.select((auth) => auth.token));
+  return ref.watch(apiServiceProvider).fetchReadingProgressList(token: token);
 });
 
 class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {

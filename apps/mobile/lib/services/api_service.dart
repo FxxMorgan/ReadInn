@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/story.dart';
 
 class ApiService {
@@ -22,6 +25,9 @@ class ApiService {
   Options _authOptions(String? token) => Options(
     headers: token == null ? null : {'Authorization': 'Bearer $token'},
   );
+
+  String _progressKey(String storyId, String? token) =>
+      'reading_progress_${token ?? 'guest'}_$storyId';
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await _dio.post(
@@ -77,17 +83,25 @@ class ApiService {
     required String chapterId,
     required String body,
     required String authorName,
+    int? paragraphIndex,
     String? token,
   }) async {
     try {
       final response = await _dio.post(
         '/v1/stories/$storyId/chapters/$chapterId/comments',
-        data: {'body': body, 'authorName': authorName},
+        data: {
+          'body': body,
+          'authorName': authorName,
+          'paragraphIndex': ?paragraphIndex,
+        },
         options: _authOptions(token),
       );
-      return ChapterComment.fromJson(
+      final comment = ChapterComment.fromJson(
         response.data['data'] as Map<String, dynamic>,
       );
+      _comments.removeWhere((item) => item.id == comment.id);
+      _comments.insert(0, comment);
+      return comment;
     } catch (error) {
       debugPrint('API unavailable, storing comment locally: $error');
       final comment = ChapterComment(
@@ -98,6 +112,7 @@ class ApiService {
         body: body,
         createdAt: DateTime.now(),
         likes: 0,
+        paragraphIndex: paragraphIndex,
       );
       _comments.insert(0, comment);
       return comment;
@@ -110,7 +125,13 @@ class ApiService {
         '/v1/stories/$storyId/like',
         options: _authOptions(token),
       );
-      return response.data['data']['liked'] as bool? ?? false;
+      final liked = response.data['data']['liked'] as bool? ?? false;
+      if (liked) {
+        _likedStoryIds.add(storyId);
+      } else {
+        _likedStoryIds.remove(storyId);
+      }
+      return liked;
     } catch (error) {
       debugPrint('API unavailable, toggling like locally: $error');
       if (!_likedStoryIds.add(storyId)) _likedStoryIds.remove(storyId);
@@ -124,7 +145,13 @@ class ApiService {
         '/v1/library/$storyId',
         options: _authOptions(token),
       );
-      return response.data['data']['saved'] as bool? ?? false;
+      final saved = response.data['data']['saved'] as bool? ?? false;
+      if (saved) {
+        _savedStoryIds.add(storyId);
+      } else {
+        _savedStoryIds.remove(storyId);
+      }
+      return saved;
     } catch (error) {
       debugPrint('API unavailable, toggling library locally: $error');
       if (!_savedStoryIds.add(storyId)) _savedStoryIds.remove(storyId);
@@ -155,16 +182,202 @@ class ApiService {
     required String chapterId,
     required double progressPercentage,
     String? token,
+    bool isCompleted = false,
+    List<String> seenChapterIds = const [],
   }) async {
-    await _dio.post(
-      '/v1/reading-progress',
-      data: {
-        'storyId': storyId,
-        'chapterId': chapterId,
-        'progressPercentage': progressPercentage,
-      },
+    final progressKey = _progressKey(storyId, token);
+    _localProgress[progressKey] = ReadingProgress(
+      storyId: storyId,
+      chapterId: chapterId,
+      progressPercentage: progressPercentage,
+      isCompleted: isCompleted,
+      seenChapterIds: seenChapterIds,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _progressKey(storyId, token),
+      jsonEncode(_localProgress[progressKey]!.toJson()),
+    );
+    try {
+      await _dio.post(
+        '/v1/reading-progress',
+        data: {
+          'storyId': storyId,
+          'chapterId': chapterId,
+          'progressPercentage': progressPercentage,
+          'isCompleted': isCompleted,
+          'seenChapterIds': seenChapterIds,
+        },
+        options: _authOptions(token),
+      );
+    } catch (_) {}
+  }
+
+  Future<ReadingProgress?> fetchReadingProgress(
+    String storyId, {
+    String? token,
+  }) async {
+    final progressKey = _progressKey(storyId, token);
+    ReadingProgress? local = _localProgress[progressKey];
+    if (local == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_progressKey(storyId, token));
+      if (raw != null) {
+        try {
+          local = ReadingProgress.fromJson(
+            jsonDecode(raw) as Map<String, dynamic>,
+          );
+          _localProgress[progressKey] = local;
+        } catch (_) {}
+      }
+    }
+    try {
+      final response = await _dio.get(
+        '/v1/stories/$storyId/reading-progress',
+        options: _authOptions(token),
+      );
+      final data = response.data['data'];
+      if (data is! Map<String, dynamic>) return local;
+      return ReadingProgress.fromJson(data);
+    } catch (_) {
+      return local;
+    }
+  }
+
+  Future<StoryEngagement> fetchStoryEngagement(
+    String storyId, {
+    String? token,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/v1/stories/$storyId/engagement',
+        options: _authOptions(token),
+      );
+      return StoryEngagement.fromJson(
+        response.data['data'] as Map<String, dynamic>,
+      );
+    } catch (_) {
+      return StoryEngagement(
+        reads: 0,
+        followers: 0,
+        comments: _comments
+            .where((comment) => comment.storyId == storyId)
+            .length,
+        averageRating: _localRatings[storyId] ?? 0,
+        ratingCount: _localRatings.containsKey(storyId) ? 1 : 0,
+        userRating: _localRatings[storyId] ?? 0,
+        liked: _likedStoryIds.contains(storyId),
+        saved: _savedStoryIds.contains(storyId),
+      );
+    }
+  }
+
+  Future<void> rateStory(String storyId, double rating, {String? token}) async {
+    if (rating == 0) {
+      _localRatings.remove(storyId);
+    } else {
+      _localRatings[storyId] = rating;
+    }
+    try {
+      await _dio.post(
+        '/v1/stories/$storyId/rating',
+        data: {'rating': rating},
+        options: _authOptions(token),
+      );
+    } catch (_) {}
+  }
+
+  Future<List<Map<String, dynamic>>> fetchReadingProgressList({
+    String? token,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/v1/reading-progress',
+        options: _authOptions(token),
+      );
+      final data = response.data['data'] as List<dynamic>? ?? [];
+      return data
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    } catch (_) {
+      return _stories
+          .where(
+            (story) =>
+                _localProgress.keys.any((key) => key.endsWith('_${story.id}')),
+          )
+          .map((story) {
+            final key = _localProgress.keys.firstWhere(
+              (candidate) => candidate.endsWith('_${story.id}'),
+            );
+            final progress = _localProgress[key]!;
+            return {
+              'storyId': story.id,
+              'storyTitle': story.title,
+              'coverColor': story.coverColor,
+              'chapterId': progress.chapterId,
+              'progressPercentage': progress.progressPercentage,
+              'isCompleted': progress.isCompleted,
+              'seenChapterIds': progress.seenChapterIds,
+            };
+          })
+          .toList();
+    }
+  }
+
+  Future<List<StorySummary>> fetchWriterStories({String? token}) async {
+    try {
+      final response = await _dio.get(
+        '/v1/me/stories',
+        options: _authOptions(token),
+      );
+      final data = response.data['data'] as List<dynamic>? ?? [];
+      final remoteStories = data
+          .map((item) => StorySummary.fromJson(item as Map<String, dynamic>))
+          .toList();
+      final localStories = _localWriterStories[token ?? 'guest'] ?? const [];
+      final remoteIds = remoteStories.map((story) => story.id).toSet();
+      return [
+        ...localStories.where((story) => !remoteIds.contains(story.id)),
+        ...remoteStories,
+      ];
+    } catch (_) {
+      return List.unmodifiable(
+        _localWriterStories[token ?? 'guest'] ?? const <StorySummary>[],
+      );
+    }
+  }
+
+  Future<DashboardMetrics> fetchDashboardMetrics({String? token}) async {
+    try {
+      final response = await _dio.get(
+        '/v1/dashboard/metrics',
+        options: _authOptions(token),
+      );
+      return DashboardMetrics.fromJson(
+        response.data['data'] as Map<String, dynamic>,
+      );
+    } catch (_) {
+      return const DashboardMetrics(
+        totalViews: 0,
+        uniqueReaders: 0,
+        avgReadMinutes: 0,
+        followers: 0,
+        stories: [],
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    required String displayName,
+    required String bio,
+    required String token,
+  }) async {
+    final response = await _dio.patch(
+      '/v1/auth/me',
+      data: {'displayName': displayName, 'bio': bio},
       options: _authOptions(token),
     );
+    return response.data['data'] as Map<String, dynamic>;
   }
 
   Future<StorySummary> createStory({
@@ -173,6 +386,8 @@ class ApiService {
     required String genre,
     required bool isMature,
     required String coverColor,
+    required String authorName,
+    required String authorUsername,
     String? token,
   }) async {
     try {
@@ -187,16 +402,18 @@ class ApiService {
         },
         options: _authOptions(token),
       );
-      return StorySummary.fromJson(
+      final story = StorySummary.fromJson(
         response.data['data'] as Map<String, dynamic>,
       );
+      _rememberWriterStory(story, token);
+      return story;
     } catch (error) {
       debugPrint('API unavailable, creating story locally: $error');
-      return StorySummary(
+      final story = StorySummary(
         id: 'local-story-${DateTime.now().millisecondsSinceEpoch}',
         title: title,
-        author: 'Invitado',
-        authorUsername: 'invitado',
+        author: authorName,
+        authorUsername: authorUsername,
         synopsis: synopsis,
         genre: genre,
         status: 'draft',
@@ -204,10 +421,105 @@ class ApiService {
         isMature: isMature,
         coverColor: coverColor,
       );
+      _stories.insert(0, story);
+      _chapters[story.id] = <ChapterSummary>[];
+      _rememberWriterStory(story, token);
+      return story;
     }
   }
 
-  static const _stories = [
+  Future<ChapterSummary> createChapter({
+    required String storyId,
+    required String title,
+    required List<String> content,
+    String? token,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/v1/stories/$storyId/chapters',
+        data: {'title': title, 'content': content},
+        options: _authOptions(token),
+      );
+      final data = response.data['data'] as Map<String, dynamic>;
+      final chapter = ChapterSummary.fromJson(data);
+      _rememberChapter(chapter, content);
+      return chapter;
+    } catch (error) {
+      debugPrint('API unavailable, creating chapter locally: $error');
+      final chapters = _chapters.putIfAbsent(storyId, () => <ChapterSummary>[]);
+      final chapter = ChapterSummary(
+        id: 'local-chapter-${DateTime.now().millisecondsSinceEpoch}',
+        storyId: storyId,
+        position: chapters.length + 1,
+        title: title,
+      );
+      _rememberChapter(chapter, content);
+      return chapter;
+    }
+  }
+
+  void _rememberWriterStory(StorySummary story, String? token) {
+    final stories = _localWriterStories.putIfAbsent(
+      token ?? 'guest',
+      () => <StorySummary>[],
+    );
+    stories.removeWhere((item) => item.id == story.id);
+    stories.insert(0, story);
+    if (!_stories.any((item) => item.id == story.id)) {
+      _stories.insert(0, story);
+    }
+    _chapters.putIfAbsent(story.id, () => <ChapterSummary>[]);
+  }
+
+  void _rememberChapter(ChapterSummary chapter, List<String> content) {
+    final chapters = _chapters.putIfAbsent(
+      chapter.storyId,
+      () => <ChapterSummary>[],
+    );
+    chapters.removeWhere((item) => item.id == chapter.id);
+    chapters.add(chapter);
+    chapters.sort((a, b) => a.position.compareTo(b.position));
+
+    final storyIndex = _stories.indexWhere(
+      (item) => item.id == chapter.storyId,
+    );
+    final story = storyIndex == -1 ? null : _stories[storyIndex];
+    _content[chapter.id] = ChapterDetail(
+      id: chapter.id,
+      storyId: chapter.storyId,
+      storyTitle: story?.title ?? 'Obra',
+      position: chapter.position,
+      title: chapter.title,
+      content: content,
+    );
+    _replaceStoryChapterCount(chapter.storyId, chapters.length);
+  }
+
+  void _replaceStoryChapterCount(String storyId, int chapterCount) {
+    StorySummary replace(StorySummary story) => StorySummary(
+      id: story.id,
+      title: story.title,
+      author: story.author,
+      authorUsername: story.authorUsername,
+      synopsis: story.synopsis,
+      genre: story.genre,
+      status: story.status,
+      chapterCount: chapterCount,
+      isMature: story.isMature,
+      coverColor: story.coverColor,
+    );
+
+    final storyIndex = _stories.indexWhere((story) => story.id == storyId);
+    if (storyIndex != -1) _stories[storyIndex] = replace(_stories[storyIndex]);
+    for (final stories in _localWriterStories.values) {
+      final index = stories.indexWhere((story) => story.id == storyId);
+      if (index != -1) stories[index] = replace(stories[index]);
+    }
+  }
+
+  static final Map<String, List<StorySummary>> _localWriterStories = {};
+
+  static final List<StorySummary> _stories = [
     StorySummary(
       id: 'story-lighthouse',
       title: 'La luz del faro',
@@ -236,7 +548,7 @@ class ApiService {
     ),
   ];
 
-  static const _chapters = {
+  static final Map<String, List<ChapterSummary>> _chapters = {
     'story-lighthouse': [
       ChapterSummary(
         id: 'chapter-lighthouse-1',
@@ -273,7 +585,7 @@ class ApiService {
     ],
   };
 
-  static const _content = {
+  static final Map<String, ChapterDetail> _content = {
     'chapter-lighthouse-1': ChapterDetail(
       id: 'chapter-lighthouse-1',
       storyId: 'story-lighthouse',
@@ -334,6 +646,9 @@ class ApiService {
   ];
   static final Set<String> _likedStoryIds = <String>{};
   static final Set<String> _savedStoryIds = <String>{'story-lighthouse'};
+  static final Map<String, double> _localRatings = <String, double>{};
+  static final Map<String, ReadingProgress> _localProgress =
+      <String, ReadingProgress>{};
 
   Future<List<StorySummary>> fetchStories({
     String? query,

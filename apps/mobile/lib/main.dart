@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'screens/explore_screen.dart';
 import 'screens/creator_stats_screen.dart';
 import 'screens/library_screen.dart';
+import 'screens/manage_story_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/story_detail_screen.dart';
 import 'screens/user_profile_screen.dart';
@@ -37,6 +38,11 @@ final _router = GoRouter(
     GoRoute(
       path: '/writer/dashboard',
       builder: (context, state) => const WriterDashboardScreen(),
+    ),
+    GoRoute(
+      path: '/writer/story/:storyId',
+      builder: (context, state) =>
+          ManageStoryScreen(storyId: state.pathParameters['storyId'] ?? ''),
     ),
     GoRoute(
       path: '/writer/analytics',
