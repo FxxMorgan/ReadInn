@@ -4,9 +4,12 @@
   "packageManager": "pnpm@11.1.1",
   "scripts": {
     "dev:api": "pnpm --filter @readinn/api dev",
+    "dev:web": "pnpm --filter @readinn/web dev",
     "build:api": "pnpm --filter @readinn/api build",
+    "build:web": "pnpm --filter @readinn/web build",
     "test:api": "pnpm --filter @readinn/api test",
     "lint:api": "pnpm --filter @readinn/api lint",
+    "typecheck:web": "pnpm --filter @readinn/web typecheck",
     "prisma:generate": "pnpm --filter @readinn/api prisma:generate",
     "prisma:migrate": "pnpm --filter @readinn/api prisma:migrate"
   },

@@ -12,6 +12,7 @@ const envSchema = z.object({
   S3_ACCESS_KEY: z.string().optional(),
   S3_SECRET_KEY: z.string().optional(),
   R2_PUBLIC_DOMAIN: z.string().optional(),
+  JWT_SECRET: z.string().min(32).optional(),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

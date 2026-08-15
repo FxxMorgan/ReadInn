@@ -12,6 +12,33 @@ class ManageStoryScreen extends ConsumerWidget {
 
   const ManageStoryScreen({super.key, required this.storyId});
 
+  Future<void> _publishStory(
+    BuildContext context,
+    WidgetRef ref,
+    StoryDetail story,
+  ) async {
+    final token = ref.read(authProvider).token;
+    if (token == null) return;
+
+    try {
+      await ref
+          .read(apiServiceProvider)
+          .publishStory(story.id, token: token);
+      ref.invalidate(writerStoryDetailProvider(story.id));
+      ref.invalidate(writerStoriesProvider);
+      ref.invalidate(storiesProvider);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Obra publicada correctamente.')),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No pudimos publicar la obra.')),
+      );
+    }
+  }
+
   Future<void> _createChapter(
     BuildContext context,
     WidgetRef ref,
@@ -33,7 +60,7 @@ class ManageStoryScreen extends ConsumerWidget {
             content: result.paragraphs,
             token: token,
           );
-      ref.invalidate(storyDetailProvider(story.id));
+      ref.invalidate(writerStoryDetailProvider(story.id));
       ref.invalidate(writerStoriesProvider);
       ref.invalidate(dashboardMetricsProvider);
       if (!context.mounted) return;
@@ -50,7 +77,7 @@ class ManageStoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final story = ref.watch(storyDetailProvider(storyId));
+    final story = ref.watch(writerStoryDetailProvider(storyId));
     return Scaffold(
       appBar: AppBar(
         title: const Text('Administrar obra'),
@@ -65,7 +92,7 @@ class ManageStoryScreen extends ConsumerWidget {
       body: story.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _LoadError(
-          onRetry: () => ref.invalidate(storyDetailProvider(storyId)),
+          onRetry: () => ref.invalidate(writerStoryDetailProvider(storyId)),
         ),
         data: (data) => ListView(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 112),
@@ -81,6 +108,14 @@ class ManageStoryScreen extends ConsumerWidget {
               '${data.genre} · ${data.chapters.length} capítulos',
               style: const TextStyle(color: ReadInnColors.muted),
             ),
+            if (data.status == 'draft') ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () => _publishStory(context, ref, data),
+                icon: const Icon(Icons.publish_outlined),
+                label: const Text('Publicar obra'),
+              ),
+            ],
             const SizedBox(height: 24),
             Row(
               children: [

@@ -6,7 +6,7 @@ const uploadIntentSchema = z.object({
   filename: z.string().min(1).max(255),
   mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
   sizeBytes: z.number().max(5 * 1024 * 1024, 'El tamaño máximo permitido es 5 MB'),
-  purpose: z.enum(['cover', 'avatar']),
+  purpose: z.enum(['cover', 'avatar', 'chapter']),
 });
 
 interface MediaRecord {

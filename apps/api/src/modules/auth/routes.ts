@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
 import { AppError } from '../../shared/errors.js';
+import { accessToken, bearerClaims, refreshToken, verifyToken } from '../../shared/auth.js';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -34,16 +35,7 @@ const profileUpdateSchema = z.object({
   bio: z.string().trim().max(500).optional(),
 });
 
-function bearerUserId(authorization?: string): string | null {
-  const token = authorization?.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf8')) as { userId?: string };
-    return payload.userId ?? null;
-  } catch (_) {
-    return null;
-  }
-}
+function bearerUserId(authorization?: string): string | null { return bearerClaims(authorization)?.userId ?? null; }
 
 function hashPassword(password: string): string {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -64,11 +56,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     const body = registerSchema.parse(request.body);
     const isDbConnected = await checkDatabaseConnection();
     if (!isDbConnected) {
-      const token = Buffer.from(JSON.stringify({
-        userId: `user-${body.username}`,
-        email: body.email,
-        type: 'access',
-      })).toString('base64');
+      const token = accessToken(`user-${body.username}`, body.email);
       return reply.status(201).send({
         data: {
           user: {
@@ -78,7 +66,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             displayName: body.displayName ?? body.username,
           },
           token,
-          refreshToken: 'mock-refresh-token-12345',
+          refreshToken: refreshToken(`user-${body.username}`),
         },
       });
     }
@@ -112,8 +100,8 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       include: { profile: true },
     });
 
-    const token = Buffer.from(JSON.stringify({ userId: user.id, email: user.email, type: 'access' })).toString('base64');
-    const refreshToken = Buffer.from(JSON.stringify({ userId: user.id, type: 'refresh', nonce: crypto.randomUUID() })).toString('base64');
+    const token = accessToken(user.id, user.email);
+    const nextRefreshToken = refreshToken(user.id);
 
     return reply.status(201).send({
       data: {
@@ -124,7 +112,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           displayName: user.profile?.displayName ?? user.username,
         },
         token,
-        refreshToken,
+        refreshToken: nextRefreshToken,
       },
     });
   });
@@ -135,11 +123,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     const isDbConnected = await checkDatabaseConnection();
     if (!isDbConnected) {
       const username = body.email.split('@')[0] || 'lector';
-      const token = Buffer.from(JSON.stringify({
-        userId: `user-${username}`,
-        email: body.email,
-        type: 'access',
-      })).toString('base64');
+      const token = accessToken(`user-${username}`, body.email);
       return {
         data: {
           user: {
@@ -149,7 +133,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             displayName: username,
           },
           token,
-          refreshToken: `mock-refresh-token-${username}`,
+          refreshToken: refreshToken(`user-${username}`),
         },
       };
     }
@@ -163,8 +147,8 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       throw new AppError('INVALID_CREDENTIALS', 'Credenciales incorrectas.', 401);
     }
 
-    const token = Buffer.from(JSON.stringify({ userId: user.id, email: user.email, type: 'access' })).toString('base64');
-    const refreshToken = Buffer.from(JSON.stringify({ userId: user.id, type: 'refresh', nonce: crypto.randomUUID() })).toString('base64');
+    const token = accessToken(user.id, user.email);
+    const nextRefreshToken = refreshToken(user.id);
 
     return {
       data: {
@@ -175,7 +159,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           displayName: user.profile?.displayName ?? user.username,
         },
         token,
-        refreshToken,
+        refreshToken: nextRefreshToken,
       },
     };
   });
@@ -188,9 +172,10 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     }
 
     try {
-      const decoded = JSON.parse(Buffer.from(body.refreshToken, 'base64').toString('utf-8'));
-      const newToken = Buffer.from(JSON.stringify({ userId: decoded.userId, type: 'access' })).toString('base64');
-      const newRefreshToken = Buffer.from(JSON.stringify({ userId: decoded.userId, type: 'refresh', nonce: crypto.randomUUID() })).toString('base64');
+      const decoded = verifyToken(body.refreshToken, 'refresh');
+      if (!decoded) throw new Error('invalid refresh token');
+      const newToken = accessToken(decoded.userId, decoded.email);
+      const newRefreshToken = refreshToken(decoded.userId);
 
       return {
         data: {

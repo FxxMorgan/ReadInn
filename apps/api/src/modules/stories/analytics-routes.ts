@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { checkDatabaseConnection } from '../../shared/db.js';
 import { writerRepository } from './writer-repository.js';
+import { bearerClaims } from '../../shared/auth.js';
 
 const eventSchema = z.object({
   eventType: z.enum(['chapter_opened', 'reading_heartbeat', 'chapter_completed']),
@@ -12,14 +13,7 @@ const eventSchema = z.object({
 });
 
 function bearerUserId(authorization?: string): string | null {
-  const token = authorization?.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  try {
-    const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf8')) as { userId?: string };
-    return payload.userId ?? null;
-  } catch (_) {
-    return null;
-  }
+  return bearerClaims(authorization)?.userId ?? null;
 }
 
 export function registerAnalyticsRoutes(app: FastifyInstance): void {

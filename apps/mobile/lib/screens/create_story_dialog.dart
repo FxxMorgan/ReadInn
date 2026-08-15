@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
 import '../providers/story_providers.dart';
@@ -186,12 +187,13 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
               onPressed: _isLoading
                   ? null
                   : () async {
-                      if (_titleController.text.trim().isEmpty ||
-                          _synopsisController.text.trim().isEmpty) {
+                      final title = _titleController.text.trim();
+                      final synopsis = _synopsisController.text.trim();
+                      if (title.length < 2 || synopsis.length < 10) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Por favor completa el título y la sinopsis',
+                              'El título necesita 2 caracteres y la sinopsis al menos 10.',
                             ),
                           ),
                         );
@@ -200,23 +202,43 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
 
                       setState(() => _isLoading = true);
 
-                      final auth = ref.read(authProvider);
-                      final createdStory = await ref
-                          .read(apiServiceProvider)
-                          .createStory(
-                            title: _titleController.text.trim(),
-                            synopsis: _synopsisController.text.trim(),
-                            genre: _selectedGenre,
-                            isMature: _isMature,
-                            coverColor: _coverColor,
-                            authorName: auth.user?.displayName ?? 'Invitado',
-                            authorUsername: auth.user?.username ?? 'invitado',
-                            token: auth.token,
-                          );
+                      try {
+                        final auth = ref.read(authProvider);
+                        final createdStory = await ref
+                            .read(apiServiceProvider)
+                            .createStory(
+                              title: title,
+                              synopsis: synopsis,
+                              genre: _selectedGenre,
+                              isMature: _isMature,
+                              coverColor: _coverColor,
+                              authorName: auth.user?.displayName ?? 'Invitado',
+                              authorUsername: auth.user?.username ?? 'invitado',
+                              token: auth.token,
+                            );
 
-                      if (context.mounted) {
-                        ref.invalidate(storiesProvider);
-                        Navigator.pop(context, createdStory);
+                        if (context.mounted) {
+                          ref.invalidate(storiesProvider);
+                          ref.invalidate(writerStoriesProvider);
+                          Navigator.pop(context, createdStory);
+                        }
+                      } catch (error) {
+                        if (!context.mounted) return;
+                        setState(() => _isLoading = false);
+                        var message =
+                            'No pudimos publicar la obra. Revisa tu conexión e inténtalo otra vez.';
+                        if (error is DioException) {
+                          final payload = error.response?.data;
+                          if (payload is Map && payload['error'] is Map) {
+                            final apiMessage = payload['error']['message'];
+                            if (apiMessage is String && apiMessage.isNotEmpty) {
+                              message = apiMessage;
+                            }
+                          }
+                        }
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(message)));
                       }
                     },
               child: _isLoading

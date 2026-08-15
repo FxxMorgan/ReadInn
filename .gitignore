@@ -4,6 +4,8 @@
 node_modules/
 dist/
 coverage/
+.next/
+*.tsbuildinfo
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -17,4 +19,6 @@ apps/mobile/macos/Flutter/ephemeral/
 apps/mobile/windows/flutter/ephemeral/
 apps/mobile/linux/flutter/ephemeral/
 *.log
+*.hprof
+.codex/
 .DS_Store

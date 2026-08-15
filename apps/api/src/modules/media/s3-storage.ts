@@ -38,7 +38,7 @@ export class S3MediaService {
   async generatePresignedUploadUrl(
     filename: string,
     mimeType: string,
-    purpose: 'cover' | 'avatar'
+    purpose: 'cover' | 'avatar' | 'chapter'
   ): Promise<PresignedUploadResult> {
     const mediaId = `media-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const extension = filename.split('.').pop() || 'jpg';

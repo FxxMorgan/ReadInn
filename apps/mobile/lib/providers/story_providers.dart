@@ -53,6 +53,17 @@ final writerStoriesProvider = FutureProvider<List<StorySummary>>((ref) {
   return ref.watch(apiServiceProvider).fetchWriterStories(token: token);
 });
 
+final writerStoryDetailProvider =
+    FutureProvider.family<StoryDetail, String>((ref, storyId) {
+      final token = ref.watch(authProvider.select((auth) => auth.token));
+      if (token == null) {
+        throw StateError('Debes iniciar sesion para administrar una obra.');
+      }
+      return ref
+          .watch(apiServiceProvider)
+          .fetchWriterStoryDetail(storyId, token: token);
+    });
+
 final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) {
   final token = ref.watch(authProvider.select((auth) => auth.token));
   return ref.watch(apiServiceProvider).fetchDashboardMetrics(token: token);

@@ -1,4 +1,4 @@
-export type StoryStatus = 'published' | 'completed';
+export type StoryStatus = 'draft' | 'published' | 'completed' | 'archived' | 'suspended';
 
 export type StorySummary = {
   id: string;

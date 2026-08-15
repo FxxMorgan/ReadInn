@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
 import { storyFixtures } from './story-fixtures.js';
+import { bearerClaims } from '../../shared/auth.js';
 
 const progressSchema = z.object({
   storyId: z.string(),
@@ -66,16 +67,10 @@ const mockReads = new Map<string, number>([['story-lighthouse', 24580], ['story-
 
 function requestUserId(request: { headers: { authorization?: unknown } }): string {
   const authorization = request.headers.authorization;
-  const token = typeof authorization === 'string'
-    ? authorization.replace(/^Bearer\s+/i, '')
-    : undefined;
-  if (!token) return 'guest';
-  try {
-    const payload = JSON.parse(Buffer.from(token, 'base64').toString('utf8')) as { userId?: string };
-    return payload.userId ?? `token:${token}`;
-  } catch (_) {
-    return `token:${token}`;
-  }
+  const claims = bearerClaims(authorization);
+  if (claims) return claims.userId;
+  const token = typeof authorization === 'string' ? authorization.replace(/^Bearer\s+/i, '') : undefined;
+  return token ? `token:${token}` : 'guest';
 }
 
 function libraryKey(userId: string, storyId: string): string {

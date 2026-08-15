@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
 import { loadConfig } from './config/env.js';
+import { accessToken } from './shared/auth.js';
 
 const config = loadConfig({
   NODE_ENV: 'test',
@@ -72,6 +73,79 @@ describe('ReadInn API', () => {
     );
     expect(listResponse.statusCode).toBe(200);
     expect(listResponse.json<{ data: unknown[] }>().data.length).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it('keeps writer drafts private until publishing and supports archive restore', async () => {
+    const app = await buildApp(config);
+    const token = accessToken('user-web-writer', 'writer@example.com');
+    const headers = { authorization: `Bearer ${token}` };
+    const createStory = await app.inject({
+      method: 'POST', url: '/v1/stories', headers,
+      payload: { title: 'Novela web', synopsis: 'Una historia creada desde el estudio web.', genre: 'Drama', status: 'draft' },
+    });
+    expect(createStory.statusCode).toBe(201);
+    const story = createStory.json<{ data: { id: string; title: string } }>().data;
+    const privateDraft = await app.inject({
+      method: 'GET',
+      url: `/v1/me/stories/${story.id}`,
+      headers,
+    });
+    expect(privateDraft.statusCode).toBe(200);
+    expect(privateDraft.json<{ data: { title: string } }>().data.title).toBe(story.title);
+    const publicBefore = await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` });
+    expect(publicBefore.statusCode).toBe(404);
+
+    const createChapter = await app.inject({
+      method: 'POST', url: `/v1/stories/${story.id}/chapters`, headers,
+      payload: { title: 'Primer capitulo', content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Inicio' }] }] }, status: 'draft' },
+    });
+    expect(createChapter.statusCode).toBe(201);
+    const chapter = createChapter.json<{ data: { id: string; contentVersion: number } }>().data;
+    const save = await app.inject({
+      method: 'PATCH', url: `/v1/me/stories/${story.id}/chapters/${chapter.id}`, headers,
+      payload: { title: 'Primer capitulo editado', content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Texto guardado' }] }] }, plainText: 'Texto guardado', expectedVersion: chapter.contentVersion },
+    });
+    expect(save.statusCode).toBe(200);
+
+    expect((await app.inject({ method: 'POST', url: `/v1/me/stories/${story.id}/chapters/${chapter.id}/publish`, headers })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: `/v1/me/stories/${story.id}/publish`, headers })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'DELETE', url: `/v1/me/stories/${story.id}`, headers })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'POST', url: `/v1/me/stories/${story.id}/restore`, headers })).statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('publishes mobile stories explicitly and validates the synopsis', async () => {
+    const app = await buildApp(config);
+    const token = accessToken('user-mobile-writer', 'mobile@example.com');
+    const headers = { authorization: `Bearer ${token}` };
+
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/v1/stories',
+      headers,
+      payload: { title: 'No', synopsis: 'Muy corta', genre: 'Drama' },
+    });
+    expect(invalid.statusCode).toBe(422);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/stories',
+      headers,
+      payload: {
+        title: 'Historia movil',
+        synopsis: 'Una historia publicada directamente desde el telefono.',
+        genre: 'Drama',
+        status: 'published',
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const story = created.json<{ data: { id: string; status: string } }>().data;
+    expect(story.status).toBe('published');
+    expect((await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` })).statusCode).toBe(200);
+
     await app.close();
   });
 });

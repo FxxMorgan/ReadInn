@@ -325,26 +325,14 @@ class ApiService {
   }
 
   Future<List<StorySummary>> fetchWriterStories({String? token}) async {
-    try {
-      final response = await _dio.get(
-        '/v1/me/stories',
-        options: _authOptions(token),
-      );
-      final data = response.data['data'] as List<dynamic>? ?? [];
-      final remoteStories = data
-          .map((item) => StorySummary.fromJson(item as Map<String, dynamic>))
-          .toList();
-      final localStories = _localWriterStories[token ?? 'guest'] ?? const [];
-      final remoteIds = remoteStories.map((story) => story.id).toSet();
-      return [
-        ...localStories.where((story) => !remoteIds.contains(story.id)),
-        ...remoteStories,
-      ];
-    } catch (_) {
-      return List.unmodifiable(
-        _localWriterStories[token ?? 'guest'] ?? const <StorySummary>[],
-      );
-    }
+    final response = await _dio.get(
+      '/v1/me/stories',
+      options: _authOptions(token),
+    );
+    final data = response.data['data'] as List<dynamic>? ?? [];
+    return data
+        .map((item) => StorySummary.fromJson(item as Map<String, dynamic>))
+        .toList();
   }
 
   Future<DashboardMetrics> fetchDashboardMetrics({String? token}) async {
@@ -390,42 +378,43 @@ class ApiService {
     required String authorUsername,
     String? token,
   }) async {
-    try {
-      final response = await _dio.post(
-        '/v1/stories',
-        data: {
-          'title': title,
-          'synopsis': synopsis,
-          'genre': genre,
-          'isMature': isMature,
-          'coverColor': coverColor,
-        },
-        options: _authOptions(token),
-      );
-      final story = StorySummary.fromJson(
-        response.data['data'] as Map<String, dynamic>,
-      );
-      _rememberWriterStory(story, token);
-      return story;
-    } catch (error) {
-      debugPrint('API unavailable, creating story locally: $error');
-      final story = StorySummary(
-        id: 'local-story-${DateTime.now().millisecondsSinceEpoch}',
-        title: title,
-        author: authorName,
-        authorUsername: authorUsername,
-        synopsis: synopsis,
-        genre: genre,
-        status: 'draft',
-        chapterCount: 0,
-        isMature: isMature,
-        coverColor: coverColor,
-      );
-      _stories.insert(0, story);
-      _chapters[story.id] = <ChapterSummary>[];
-      _rememberWriterStory(story, token);
-      return story;
-    }
+    final response = await _dio.post(
+      '/v1/stories',
+      data: {
+        'title': title,
+        'synopsis': synopsis,
+        'genre': genre,
+        'isMature': isMature,
+        'coverColor': coverColor,
+        'status': 'published',
+      },
+      options: _authOptions(token),
+    );
+    final story = StorySummary.fromJson(
+      response.data['data'] as Map<String, dynamic>,
+    );
+    _rememberWriterStory(story, token);
+    return story;
+  }
+
+  Future<StoryDetail> fetchWriterStoryDetail(
+    String storyId, {
+    required String token,
+  }) async {
+    final response = await _dio.get(
+      '/v1/me/stories/$storyId',
+      options: _authOptions(token),
+    );
+    return StoryDetail.fromJson(
+      response.data['data'] as Map<String, dynamic>,
+    );
+  }
+
+  Future<void> publishStory(String storyId, {required String token}) async {
+    await _dio.post(
+      '/v1/me/stories/$storyId/publish',
+      options: _authOptions(token),
+    );
   }
 
   Future<ChapterSummary> createChapter({
@@ -434,28 +423,15 @@ class ApiService {
     required List<String> content,
     String? token,
   }) async {
-    try {
-      final response = await _dio.post(
-        '/v1/stories/$storyId/chapters',
-        data: {'title': title, 'content': content},
-        options: _authOptions(token),
-      );
-      final data = response.data['data'] as Map<String, dynamic>;
-      final chapter = ChapterSummary.fromJson(data);
-      _rememberChapter(chapter, content);
-      return chapter;
-    } catch (error) {
-      debugPrint('API unavailable, creating chapter locally: $error');
-      final chapters = _chapters.putIfAbsent(storyId, () => <ChapterSummary>[]);
-      final chapter = ChapterSummary(
-        id: 'local-chapter-${DateTime.now().millisecondsSinceEpoch}',
-        storyId: storyId,
-        position: chapters.length + 1,
-        title: title,
-      );
-      _rememberChapter(chapter, content);
-      return chapter;
-    }
+    final response = await _dio.post(
+      '/v1/stories/$storyId/chapters',
+      data: {'title': title, 'content': content},
+      options: _authOptions(token),
+    );
+    final data = response.data['data'] as Map<String, dynamic>;
+    final chapter = ChapterSummary.fromJson(data);
+    _rememberChapter(chapter, content);
+    return chapter;
   }
 
   void _rememberWriterStory(StorySummary story, String? token) {

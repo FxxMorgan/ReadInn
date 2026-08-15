@@ -17,6 +17,7 @@ export class StoryRepository {
       // Graceful fixture fallback
       const normalizedQuery = query?.toLocaleLowerCase('es');
       const filtered = storyFixtures.filter((story) => {
+        if (story.status !== 'published') return false;
         const matchesGenre =
           !genre || genre === 'Todos' || story.genre.toLocaleLowerCase('es') === genre.toLocaleLowerCase('es');
         const searchable = `${story.title} ${story.author} ${story.synopsis}`.toLocaleLowerCase('es');
@@ -112,7 +113,7 @@ export class StoryRepository {
   async getStoryById(storyId: string) {
     // Fixture IDs are part of the public demo contract and must remain
     // readable even when the production database is available.
-    const fixtureStory = storyFixtures.find((candidate) => candidate.id === storyId);
+    const fixtureStory = storyFixtures.find((candidate) => candidate.id === storyId && candidate.status === 'published');
     if (fixtureStory) {
       const chapters = chapterFixtures
         .filter((chapter) => chapter.storyId === fixtureStory.id)
@@ -132,7 +133,7 @@ export class StoryRepository {
     const isDbConnected = await checkDatabaseConnection();
 
     if (!isDbConnected) {
-      const story = storyFixtures.find((candidate) => candidate.id === storyId);
+      const story = storyFixtures.find((candidate) => candidate.id === storyId && candidate.status === 'published');
       if (!story) return null;
 
       const chapters = chapterFixtures
@@ -152,6 +153,7 @@ export class StoryRepository {
 
     const story = await prisma.story.findFirst({
       where: {
+        status: 'published',
         OR: [{ id: storyId }, { slug: storyId }],
       },
       include: {
@@ -226,6 +228,8 @@ export class StoryRepository {
 
     const chapter = await prisma.chapter.findFirst({
       where: {
+        status: 'published',
+        story: { status: 'published' },
         OR: [{ id: chapterId }, { slug: chapterId }],
       },
       include: {

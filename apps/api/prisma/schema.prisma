@@ -126,9 +126,26 @@ model Chapter {
   updatedAt         DateTime      @updatedAt @map("updated_at")
   archivedAt        DateTime?     @map("archived_at")
   story             Story         @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  revisions         ChapterRevision[]
 
   @@unique([storyId, slug])
   @@unique([storyId, position])
   @@index([storyId, status, position])
   @@map("chapters")
+}
+
+model ChapterRevision {
+  id             String   @id @default(uuid()) @db.Uuid
+  chapterId      String   @map("chapter_id") @db.Uuid
+  version        Int
+  title          String   @db.VarChar(150)
+  contentJson    Json     @map("content_json")
+  plainText      String   @map("plain_text")
+  reason         String   @default("autosave") @db.VarChar(40)
+  createdAt      DateTime @default(now()) @map("created_at")
+  chapter        Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, version])
+  @@index([chapterId, createdAt(sort: Desc)])
+  @@map("chapter_revisions")
 }

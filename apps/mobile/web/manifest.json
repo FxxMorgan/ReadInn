@@ -1,6 +1,6 @@
 {
-    "name": "readinn",
-    "short_name": "readinn",
+    "name": "ReadInn",
+    "short_name": "ReadInn",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
