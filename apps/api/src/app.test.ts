@@ -76,6 +76,44 @@ describe('ReadInn API', () => {
     await app.close();
   });
 
+  it('returns truthful zero metrics and the real rating average', async () => {
+    const app = await buildApp(config);
+    const token = accessToken('user-metrics-reader', 'metrics@example.com');
+    const headers = { authorization: `Bearer ${token}` };
+
+    const metrics = await app.inject({
+      method: 'GET',
+      url: '/v1/dashboard/metrics',
+      headers,
+    });
+    expect(metrics.statusCode).toBe(200);
+    expect(metrics.json<{ data: { summary: { totalViews: number; uniqueReaders: number; avgReadMinutes: number } } }>().data.summary).toMatchObject({
+      totalViews: 0,
+      uniqueReaders: 0,
+      avgReadMinutes: 0,
+    });
+
+    expect((await app.inject({
+      method: 'POST',
+      url: '/v1/stories/story-lighthouse/rating',
+      headers,
+      payload: { rating: 5 },
+    })).statusCode).toBe(200);
+    const engagement = await app.inject({
+      method: 'GET',
+      url: '/v1/stories/story-lighthouse/engagement',
+      headers,
+    });
+    expect(engagement.statusCode).toBe(200);
+    expect(engagement.json<{ data: { averageRating: number; ratingCount: number; userRating: number } }>().data).toMatchObject({
+      averageRating: 5,
+      ratingCount: 1,
+      userRating: 5,
+    });
+
+    await app.close();
+  });
+
   it('keeps writer drafts private until publishing and supports archive restore', async () => {
     const app = await buildApp(config);
     const token = accessToken('user-web-writer', 'writer@example.com');

@@ -11,6 +11,8 @@ class StorySummary {
   final int chapterCount;
   final bool isMature;
   final String coverColor;
+  final double averageRating;
+  final int ratingCount;
 
   const StorySummary({
     required this.id,
@@ -23,6 +25,8 @@ class StorySummary {
     required this.chapterCount,
     required this.isMature,
     required this.coverColor,
+    this.averageRating = 0,
+    this.ratingCount = 0,
   });
 
   factory StorySummary.fromJson(Map<String, dynamic> json) => StorySummary(
@@ -36,6 +40,8 @@ class StorySummary {
     chapterCount: (json['chapterCount'] as num?)?.toInt() ?? 0,
     isMature: json['isMature'] as bool? ?? false,
     coverColor: json['coverColor'] as String? ?? '#4F46E5',
+    averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0,
+    ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
   );
 }
 
@@ -74,6 +80,8 @@ class StoryDetail extends StorySummary {
     required super.chapterCount,
     required super.isMature,
     required super.coverColor,
+    super.averageRating,
+    super.ratingCount,
     required this.chapters,
   });
 
@@ -94,6 +102,8 @@ class StoryDetail extends StorySummary {
       chapterCount: (json['chapterCount'] as num?)?.toInt() ?? chapters.length,
       isMature: json['isMature'] as bool? ?? false,
       coverColor: json['coverColor'] as String? ?? '#4F46E5',
+      averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0,
+      ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
       chapters: chapters,
     );
   }

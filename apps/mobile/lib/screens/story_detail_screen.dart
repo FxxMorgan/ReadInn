@@ -242,16 +242,28 @@ class StoryDetailScreen extends ConsumerWidget {
                             return IconButton(
                               tooltip: '$value estrellas',
                               onPressed: () async {
-                                await ref
-                                    .read(apiServiceProvider)
-                                    .rateStory(
-                                      storyId,
-                                      value.toDouble(),
-                                      token: auth.token,
-                                    );
-                                ref.invalidate(
-                                  storyEngagementProvider(storyId),
-                                );
+                                try {
+                                  await ref
+                                      .read(apiServiceProvider)
+                                      .rateStory(
+                                        storyId,
+                                        value.toDouble(),
+                                        token: auth.token,
+                                      );
+                                  ref.invalidate(
+                                    storyEngagementProvider(storyId),
+                                  );
+                                  ref.invalidate(storiesProvider);
+                                } catch (_) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'No pudimos guardar tu calificaciÃ³n.',
+                                      ),
+                                    ),
+                                  );
+                                }
                               },
                               icon: Icon(
                                 value <= engagement.userRating.round()
@@ -266,10 +278,24 @@ class StoryDetailScreen extends ConsumerWidget {
                         if (engagement.userRating > 0)
                           TextButton(
                             onPressed: () async {
-                              await ref
-                                  .read(apiServiceProvider)
-                                  .rateStory(storyId, 0, token: auth.token);
-                              ref.invalidate(storyEngagementProvider(storyId));
+                              try {
+                                await ref
+                                    .read(apiServiceProvider)
+                                    .rateStory(storyId, 0, token: auth.token);
+                                ref.invalidate(
+                                  storyEngagementProvider(storyId),
+                                );
+                                ref.invalidate(storiesProvider);
+                              } catch (_) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'No pudimos quitar tu calificaciÃ³n.',
+                                    ),
+                                  ),
+                                );
+                              }
                             },
                             child: const Text('Quitar calificación'),
                           ),

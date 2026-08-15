@@ -7,6 +7,9 @@ import '../models/story.dart';
 
 class ApiService {
   final Dio _dio;
+  static final RegExp _uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  );
   static const _productionBaseUrl = 'https://api.cypher.cl';
   static const _configuredBaseUrl = String.fromEnvironment(
     'READINN_API_URL',
@@ -248,43 +251,21 @@ class ApiService {
     String storyId, {
     String? token,
   }) async {
-    try {
-      final response = await _dio.get(
-        '/v1/stories/$storyId/engagement',
-        options: _authOptions(token),
-      );
-      return StoryEngagement.fromJson(
-        response.data['data'] as Map<String, dynamic>,
-      );
-    } catch (_) {
-      return StoryEngagement(
-        reads: 0,
-        followers: 0,
-        comments: _comments
-            .where((comment) => comment.storyId == storyId)
-            .length,
-        averageRating: _localRatings[storyId] ?? 0,
-        ratingCount: _localRatings.containsKey(storyId) ? 1 : 0,
-        userRating: _localRatings[storyId] ?? 0,
-        liked: _likedStoryIds.contains(storyId),
-        saved: _savedStoryIds.contains(storyId),
-      );
-    }
+    final response = await _dio.get(
+      '/v1/stories/$storyId/engagement',
+      options: _authOptions(token),
+    );
+    return StoryEngagement.fromJson(
+      response.data['data'] as Map<String, dynamic>,
+    );
   }
 
   Future<void> rateStory(String storyId, double rating, {String? token}) async {
-    if (rating == 0) {
-      _localRatings.remove(storyId);
-    } else {
-      _localRatings[storyId] = rating;
-    }
-    try {
-      await _dio.post(
-        '/v1/stories/$storyId/rating',
-        data: {'rating': rating},
-        options: _authOptions(token),
-      );
-    } catch (_) {}
+    await _dio.post(
+      '/v1/stories/$storyId/rating',
+      data: {'rating': rating},
+      options: _authOptions(token),
+    );
   }
 
   Future<List<Map<String, dynamic>>> fetchReadingProgressList({
@@ -355,6 +336,34 @@ class ApiService {
     }
   }
 
+  Future<void> recordAnalyticsEvent({
+    required String eventType,
+    required String storyId,
+    required String chapterId,
+    int activeSeconds = 0,
+    String? token,
+  }) async {
+    if (!_uuidPattern.hasMatch(storyId) || !_uuidPattern.hasMatch(chapterId)) {
+      return;
+    }
+    try {
+      await _dio.post(
+        '/v1/analytics/events',
+        data: {
+          'eventType': eventType,
+          'storyId': storyId,
+          'chapterId': chapterId,
+          'activeSeconds': activeSeconds,
+          'eventId':
+              '$eventType-$storyId-$chapterId-${DateTime.now().microsecondsSinceEpoch}',
+        },
+        options: _authOptions(token),
+      );
+    } catch (error) {
+      debugPrint('Analytics event was not recorded: $error');
+    }
+  }
+
   Future<Map<String, dynamic>> updateProfile({
     required String displayName,
     required String bio,
@@ -405,9 +414,7 @@ class ApiService {
       '/v1/me/stories/$storyId',
       options: _authOptions(token),
     );
-    return StoryDetail.fromJson(
-      response.data['data'] as Map<String, dynamic>,
-    );
+    return StoryDetail.fromJson(response.data['data'] as Map<String, dynamic>);
   }
 
   Future<void> publishStory(String storyId, {required String token}) async {
@@ -483,6 +490,8 @@ class ApiService {
       chapterCount: chapterCount,
       isMature: story.isMature,
       coverColor: story.coverColor,
+      averageRating: story.averageRating,
+      ratingCount: story.ratingCount,
     );
 
     final storyIndex = _stories.indexWhere((story) => story.id == storyId);
@@ -622,7 +631,6 @@ class ApiService {
   ];
   static final Set<String> _likedStoryIds = <String>{};
   static final Set<String> _savedStoryIds = <String>{'story-lighthouse'};
-  static final Map<String, double> _localRatings = <String, double>{};
   static final Map<String, ReadingProgress> _localProgress =
       <String, ReadingProgress>{};
 

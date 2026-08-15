@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,14 +25,17 @@ class ReaderScreen extends ConsumerStatefulWidget {
 
 class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   bool _recordedOpen = false;
+  DateTime? _openedAt;
 
   @override
   void initState() {
     super.initState();
+    _openedAt = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) => _recordChapterOpen());
   }
 
   Future<void> _recordChapterOpen({bool completed = false}) async {
+    final shouldRecordOpen = !_recordedOpen;
     if (_recordedOpen && !completed) return;
     _recordedOpen = true;
     try {
@@ -62,10 +67,50 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     previous?.isCompleted == true),
             seenChapterIds: seen.toList(),
           );
+      final api = ref.read(apiServiceProvider);
+      if (shouldRecordOpen) {
+        await api.recordAnalyticsEvent(
+          eventType: 'chapter_opened',
+          storyId: widget.storyId,
+          chapterId: widget.chapterId,
+          token: auth.token,
+        );
+      }
+      if (completed) {
+        await api.recordAnalyticsEvent(
+          eventType: 'chapter_completed',
+          storyId: widget.storyId,
+          chapterId: widget.chapterId,
+          token: auth.token,
+        );
+      }
       ref.invalidate(readingProgressProvider(widget.storyId));
     } catch (_) {
       _recordedOpen = false;
     }
+  }
+
+  @override
+  void dispose() {
+    final openedAt = _openedAt;
+    if (openedAt != null) {
+      final seconds = DateTime.now().difference(openedAt).inSeconds;
+      if (seconds > 0) {
+        final auth = ref.read(authProvider);
+        unawaited(
+          ref
+              .read(apiServiceProvider)
+              .recordAnalyticsEvent(
+                eventType: 'reading_heartbeat',
+                storyId: widget.storyId,
+                chapterId: widget.chapterId,
+                activeSeconds: seconds.clamp(1, 3600).toInt(),
+                token: auth.token,
+              ),
+        );
+      }
+    }
+    super.dispose();
   }
 
   void _openSettings() {

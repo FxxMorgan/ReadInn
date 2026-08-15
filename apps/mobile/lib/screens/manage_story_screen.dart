@@ -21,9 +21,7 @@ class ManageStoryScreen extends ConsumerWidget {
     if (token == null) return;
 
     try {
-      await ref
-          .read(apiServiceProvider)
-          .publishStory(story.id, token: token);
+      await ref.read(apiServiceProvider).publishStory(story.id, token: token);
       ref.invalidate(writerStoryDetailProvider(story.id));
       ref.invalidate(writerStoriesProvider);
       ref.invalidate(storiesProvider);

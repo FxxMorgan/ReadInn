@@ -80,9 +80,28 @@ export class StoryRepository {
       }),
     ]);
 
+    const ratingGroups = stories.length
+      ? await prisma.storyRating.groupBy({
+          by: ['storyId'],
+          where: { storyId: { in: stories.map((story) => story.id) } },
+          _avg: { rating: true },
+          _count: { _all: true },
+        })
+      : [];
+    const ratingsByStory = new Map(
+      ratingGroups.map((group) => [
+        group.storyId,
+        {
+          averageRating: group._avg.rating ?? 0,
+          ratingCount: group._count._all,
+        },
+      ]),
+    );
+
     const data: StorySummary[] = stories.map((story) => {
       const primaryGenre = story.genres[0]?.genre.name ?? 'General';
       const authorName = story.author.profile?.displayName ?? story.author.username;
+      const rating = ratingsByStory.get(story.id);
       
       return {
         id: story.id,
@@ -95,6 +114,8 @@ export class StoryRepository {
         chapterCount: story.publishedChapterCount,
         isMature: story.isMature,
         coverColor: story.coverUrl ?? '#855300',
+        averageRating: rating?.averageRating ?? 0,
+        ratingCount: rating?.ratingCount ?? 0,
       };
     });
 

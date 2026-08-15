@@ -332,20 +332,28 @@ class _StoryGrid extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(
-                        Icons.star_rounded,
+                      Icon(
+                        story.averageRating > 0
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
                         size: 14,
                         color: ReadInnColors.primary,
                       ),
                       const SizedBox(width: 2),
-                      const Text(
-                        '4.8',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                      Expanded(
+                        child: Text(
+                          story.averageRating > 0
+                              ? story.averageRating.toStringAsFixed(1)
+                              : 'Sin calificar',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 4),
                       Text(
                         '${story.chapterCount} cap.',
                         style: const TextStyle(

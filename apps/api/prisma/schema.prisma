@@ -44,6 +44,7 @@ model User {
   deletedAt          DateTime?     @map("deleted_at")
   profile            UserProfile?
   stories            Story[]
+  ratings            StoryRating[]
 
   @@map("users")
 }
@@ -82,6 +83,8 @@ model Story {
   author               User         @relation(fields: [authorId], references: [id])
   chapters             Chapter[]
   genres               StoryGenre[]
+  ratings              StoryRating[]
+  readingEvents        ReadingEvent[]
 
   @@index([authorId, updatedAt(sort: Desc)])
   @@index([status, publishedAt(sort: Desc)])
@@ -127,6 +130,7 @@ model Chapter {
   archivedAt        DateTime?     @map("archived_at")
   story             Story         @relation(fields: [storyId], references: [id], onDelete: Cascade)
   revisions         ChapterRevision[]
+  readingEvents     ReadingEvent[]
 
   @@unique([storyId, slug])
   @@unique([storyId, position])
@@ -148,4 +152,35 @@ model ChapterRevision {
   @@unique([chapterId, version])
   @@index([chapterId, createdAt(sort: Desc)])
   @@map("chapter_revisions")
+}
+
+model StoryRating {
+  storyId   String   @map("story_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  rating    Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, userId])
+  @@index([storyId])
+  @@map("story_ratings")
+}
+
+model ReadingEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  eventId       String   @unique @map("event_id") @db.VarChar(120)
+  storyId       String   @map("story_id") @db.Uuid
+  chapterId     String   @map("chapter_id") @db.Uuid
+  readerKey     String   @map("reader_key") @db.VarChar(100)
+  eventType     String   @map("event_type") @db.VarChar(40)
+  activeSeconds Int      @default(0) @map("active_seconds")
+  createdAt     DateTime @default(now()) @map("created_at")
+  story         Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  chapter       Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, createdAt(sort: Desc)])
+  @@index([storyId, readerKey])
+  @@map("reading_events")
 }

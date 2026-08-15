@@ -11,6 +11,8 @@ export type StorySummary = {
   chapterCount: number;
   isMature: boolean;
   coverColor: string;
+  averageRating?: number;
+  ratingCount?: number;
 };
 
 export type Chapter = {

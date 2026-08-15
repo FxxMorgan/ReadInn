@@ -73,6 +73,10 @@ function requestUserId(request: { headers: { authorization?: unknown } }): strin
   return token ? `token:${token}` : 'guest';
 }
 
+function authenticatedUserId(request: { headers: { authorization?: unknown } }): string | null {
+  return bearerClaims(request.headers.authorization)?.userId ?? null;
+}
+
 function libraryKey(userId: string, storyId: string): string {
   return `${userId}:${storyId}`;
 }
@@ -123,6 +127,43 @@ export function registerReaderRoutes(app: FastifyInstance): void {
   });
 
   app.get<{ Params: { storyId: string } }>('/v1/stories/:storyId/engagement', async (request) => {
+    const isFixture = storyFixtures.some((story) => story.id === request.params.storyId);
+    const isDbConnected = await checkDatabaseConnection();
+    if (isDbConnected && !isFixture) {
+      const userId = authenticatedUserId(request);
+      const [ratings, userRating, reads] = await Promise.all([
+        prisma.storyRating.aggregate({
+          where: { storyId: request.params.storyId },
+          _avg: { rating: true },
+          _count: { _all: true },
+        }),
+        userId
+          ? prisma.storyRating.findUnique({
+              where: { storyId_userId: { storyId: request.params.storyId, userId } },
+              select: { rating: true },
+            })
+          : null,
+        prisma.readingEvent.count({
+          where: { storyId: request.params.storyId, eventType: 'chapter_opened' },
+        }),
+      ]);
+      return {
+        data: {
+          storyId: request.params.storyId,
+          reads,
+          followers: 0,
+          comments: mockComments.filter((item) => item.storyId === request.params.storyId).length,
+          averageRating: ratings._avg.rating ?? 0,
+          ratingCount: ratings._count._all,
+          userRating: userRating?.rating ?? 0,
+          liked: mockLikes.has(`${requestUserId(request)}:${request.params.storyId}`),
+          saved: mockLibraryKeys.has(
+            libraryKey(requestUserId(request), request.params.storyId),
+          ),
+        },
+      };
+    }
+
     const ratings = mockRatings.get(request.params.storyId) ?? new Map<string, number>();
     const values = [...ratings.values()];
     const userId = requestUserId(request);
@@ -143,8 +184,31 @@ export function registerReaderRoutes(app: FastifyInstance): void {
     };
   });
 
-  app.post<{ Params: { storyId: string } }>('/v1/stories/:storyId/rating', async (request) => {
-    const body = z.object({ rating: z.number().min(0).max(5) }).parse(request.body);
+  app.post<{ Params: { storyId: string } }>('/v1/stories/:storyId/rating', async (request, reply) => {
+    const body = z.object({ rating: z.number().int().min(0).max(5) }).parse(request.body);
+    const isFixture = storyFixtures.some((story) => story.id === request.params.storyId);
+    const isDbConnected = await checkDatabaseConnection();
+    if (isDbConnected && !isFixture) {
+      const userId = authenticatedUserId(request);
+      if (!userId) {
+        return reply.status(401).send({
+          error: { code: 'AUTH_REQUIRED', message: 'Inicia sesion para calificar una obra.' },
+        });
+      }
+      if (body.rating === 0) {
+        await prisma.storyRating.deleteMany({
+          where: { storyId: request.params.storyId, userId },
+        });
+      } else {
+        await prisma.storyRating.upsert({
+          where: { storyId_userId: { storyId: request.params.storyId, userId } },
+          create: { storyId: request.params.storyId, userId, rating: body.rating },
+          update: { rating: body.rating },
+        });
+      }
+      return { data: { storyId: request.params.storyId, rating: body.rating } };
+    }
+
     const storyRatings = mockRatings.get(request.params.storyId) ?? new Map<string, number>();
     if (body.rating === 0) storyRatings.delete(requestUserId(request));
     else storyRatings.set(requestUserId(request), body.rating);
