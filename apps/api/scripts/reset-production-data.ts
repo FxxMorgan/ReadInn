@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { loadEnvFile } from 'node:process';
 
 const CONFIRMATION = 'DELETE_ALL_READINN_DATA';
 
@@ -6,6 +7,10 @@ if (process.env.READINN_RESET_CONFIRM !== CONFIRMATION) {
   throw new Error(
     `Operacion cancelada. Define READINN_RESET_CONFIRM=${CONFIRMATION} para confirmar el borrado.`,
   );
+}
+
+if (!process.env.DATABASE_URL) {
+  loadEnvFile('.env');
 }
 
 const prisma = new PrismaClient();
