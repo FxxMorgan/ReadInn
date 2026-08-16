@@ -105,6 +105,42 @@ async function resolveGenre(tx: Prisma.TransactionClient, name: string) {
   });
 }
 
+async function resolveAuthor(tx: Prisma.TransactionClient, authorName: string, fallbackAdminId: string): Promise<string> {
+  if (!authorName || !authorName.trim()) return fallbackAdminId;
+  const displayName = authorName.trim();
+  const baseUsername = slugify(displayName, 'autor').replace(/-/g, '_');
+  const email = `${baseUsername}@readinn.app`;
+
+  const existing = await tx.user.findFirst({
+    where: { OR: [{ username: baseUsername }, { email }] },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const passwordHash = crypto.createHash('sha256').update(`author_pass_${Date.now()}_${Math.random()}`).digest('hex');
+  const user = await tx.user.create({
+    data: {
+      email,
+      username: baseUsername,
+      passwordHash,
+      accountStatus: 'active',
+      isAdmin: false,
+      emailVerifiedAt: new Date(),
+      writerOnboardedAt: new Date(),
+      profile: {
+        create: {
+          displayName,
+          bio: `Perfil de autor/grupo para ${displayName} en ReadInn.`,
+          avatarUrl: 'https://ichijoutranslations.com/apple-touch-icon.png',
+          locale: 'es',
+        },
+      },
+    },
+    select: { id: true },
+  });
+  return user.id;
+}
+
 export function registerBulkImportRoutes(app: FastifyInstance): void {
   app.post('/v1/admin/stories/bulk-import', { bodyLimit: 10 * 1024 * 1024 }, async (request) => {
     const adminId = await requireAdmin(request);
@@ -136,6 +172,7 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
         if (existing) await tx.story.delete({ where: { id: existing.id } });
 
         const genre = await resolveGenre(tx, input.genre);
+        const authorId = await resolveAuthor(tx, input.authorName, adminId);
         const chapters = input.chapters.map((chapter, index) => {
           const paragraphs = paragraphsFrom(chapter.content);
           const plainText = paragraphs.join('\n\n');
@@ -154,7 +191,7 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
         const storySlugSuffix = crypto.createHash('sha256').update(importKey).digest('hex').slice(0, 10);
         const story = await tx.story.create({
           data: {
-            author: { connect: { id: adminId } },
+            author: { connect: { id: authorId } },
             title: input.title,
             slug: `${slugify(input.title, 'obra')}-${storySlugSuffix}`,
             synopsis: input.synopsis,
