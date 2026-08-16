@@ -13,6 +13,9 @@ const envSchema = z.object({
   S3_SECRET_KEY: z.string().optional(),
   R2_PUBLIC_DOMAIN: z.string().optional(),
   JWT_SECRET: z.string().min(32).optional(),
+  CACHE_ENABLED: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+  CACHE_DIR: z.string().default('.cache/readinn'),
+  CACHE_TTL_SECONDS: z.coerce.number().int().min(30).max(86400).default(900),
 });
 
 export type AppConfig = z.infer<typeof envSchema>;

@@ -60,6 +60,7 @@ class LibraryScreen extends ConsumerWidget {
                           asset: index.isEven
                               ? 'assets/images/silent_street.jpg'
                               : 'assets/images/whispers_glass.jpg',
+                          imageUrl: story.coverColor,
                           onTap: () => context.push('/story/${story.id}'),
                           onRemove: () async {
                             await ref
@@ -103,6 +104,7 @@ class LibraryScreen extends ConsumerWidget {
                             asset: index.isEven
                                 ? 'assets/images/silver_feather.jpg'
                                 : 'assets/images/project_horizon.jpg',
+                            imageUrl: item['coverColor']?.toString(),
                             onTap: storyId.isEmpty || chapterId.isEmpty
                                 ? null
                                 : () => context.push(
@@ -128,6 +130,7 @@ class _LibraryTile extends StatelessWidget {
   final String author;
   final String subtitle;
   final String asset;
+  final String? imageUrl;
   final VoidCallback onTap;
   final VoidCallback onRemove;
 
@@ -136,6 +139,7 @@ class _LibraryTile extends StatelessWidget {
     required this.author,
     required this.subtitle,
     required this.asset,
+    this.imageUrl,
     required this.onTap,
     required this.onRemove,
   });
@@ -150,7 +154,13 @@ class _LibraryTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              BookCover(title: title, asset: asset, width: 54, height: 82),
+              BookCover(
+                title: title,
+                asset: imageUrl?.startsWith('http') == true ? null : asset,
+                imageUrl: imageUrl,
+                width: 54,
+                height: 82,
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -203,6 +213,7 @@ class _ReadingProgressTile extends StatelessWidget {
   final String chapter;
   final double progress;
   final String asset;
+  final String? imageUrl;
   final VoidCallback? onTap;
 
   const _ReadingProgressTile({
@@ -210,6 +221,7 @@ class _ReadingProgressTile extends StatelessWidget {
     required this.chapter,
     required this.progress,
     required this.asset,
+    this.imageUrl,
     required this.onTap,
   });
 
@@ -223,7 +235,13 @@ class _ReadingProgressTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              BookCover(title: title, asset: asset, width: 54, height: 82),
+              BookCover(
+                title: title,
+                asset: imageUrl?.startsWith('http') == true ? null : asset,
+                imageUrl: imageUrl,
+                width: 54,
+                height: 82,
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(

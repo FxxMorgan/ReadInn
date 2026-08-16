@@ -73,6 +73,58 @@ class ManageStoryScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _deleteChapter(
+    BuildContext context,
+    WidgetRef ref,
+    StoryDetail story,
+    ChapterSummary chapter,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Borrar capitulo'),
+        content: Text('Se borrara "${chapter.title}" de forma permanente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Borrar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final token = ref.read(authProvider).token;
+    if (token == null) return;
+    try {
+      await ref
+          .read(apiServiceProvider)
+          .deleteChapter(
+            storyId: story.id,
+            chapterId: chapter.id,
+            token: token,
+          );
+      ref.invalidate(writerStoryDetailProvider(story.id));
+      ref.invalidate(writerStoriesProvider);
+      ref.invalidate(storyDetailProvider(story.id));
+      ref.invalidate(dashboardMetricsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Capitulo borrado.')));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No pudimos borrar el capitulo.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final story = ref.watch(writerStoryDetailProvider(storyId));
@@ -137,7 +189,11 @@ class ManageStoryScreen extends ConsumerWidget {
               const _EmptyChapters()
             else
               ...data.chapters.map(
-                (chapter) => _ChapterRow(story: data, chapter: chapter),
+                (chapter) => _ChapterRow(
+                  story: data,
+                  chapter: chapter,
+                  onDelete: () => _deleteChapter(context, ref, data, chapter),
+                ),
               ),
           ],
         ),
@@ -156,8 +212,13 @@ class ManageStoryScreen extends ConsumerWidget {
 class _ChapterRow extends StatelessWidget {
   final StoryDetail story;
   final ChapterSummary chapter;
+  final VoidCallback onDelete;
 
-  const _ChapterRow({required this.story, required this.chapter});
+  const _ChapterRow({
+    required this.story,
+    required this.chapter,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +236,17 @@ class _ChapterRow extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           subtitle: const Text('Publicado'),
-          trailing: const Icon(Icons.chevron_right_rounded),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Borrar capitulo',
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
           onTap: () => context.push('/story/${story.id}/read/${chapter.id}'),
         ),
         const Divider(),

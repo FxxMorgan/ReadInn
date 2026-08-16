@@ -52,6 +52,7 @@ export class S3MediaService {
         Bucket: this.bucket,
         Key: key,
         ContentType: mimeType,
+        CacheControl: 'public, max-age=31536000, immutable',
       });
 
       const uploadUrl = await getSignedUrl(this.s3Client, command, {
@@ -76,6 +77,19 @@ export class S3MediaService {
       key,
       expiresInSeconds,
     };
+  }
+
+  async uploadObject(key: string, mimeType: string, body: Buffer): Promise<void> {
+    if (!this.s3Client) {
+      throw new Error('El almacenamiento de medios no esta configurado.');
+    }
+    await this.s3Client.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: body,
+      ContentType: mimeType,
+      CacheControl: 'public, max-age=31536000, immutable',
+    }));
   }
 }
 

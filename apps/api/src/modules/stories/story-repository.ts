@@ -1,4 +1,5 @@
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
+import { contentCache } from '../../shared/content-cache.js';
 import { chapterFixtures, storyFixtures, type Chapter, type StorySummary } from './story-fixtures.js';
 
 export interface GetStoriesParams {
@@ -10,7 +11,21 @@ export interface GetStoriesParams {
 }
 
 export class StoryRepository {
-  async getStories({ query, genre, page = 1, limit = 20 }: GetStoriesParams) {
+  async getStories(params: GetStoriesParams) {
+    const normalized = {
+      query: params.query?.trim().toLocaleLowerCase('es') ?? '',
+      genre: params.genre?.trim().toLocaleLowerCase('es') ?? '',
+      page: params.page ?? 1,
+      limit: params.limit ?? 20,
+    };
+    return contentCache.remember(
+      `stories:${JSON.stringify(normalized)}`,
+      ['catalog'],
+      () => this.getStoriesUncached(params),
+    );
+  }
+
+  private async getStoriesUncached({ query, genre, page = 1, limit = 20 }: GetStoriesParams) {
     const isDbConnected = await checkDatabaseConnection();
 
     if (!isDbConnected) {
@@ -132,6 +147,14 @@ export class StoryRepository {
   }
 
   async getStoryById(storyId: string) {
+    return contentCache.remember(
+      `story:${storyId}`,
+      [`story:${storyId}`],
+      () => this.getStoryByIdUncached(storyId),
+    );
+  }
+
+  private async getStoryByIdUncached(storyId: string) {
     // Fixture IDs are part of the public demo contract and must remain
     // readable even when the production database is available.
     const fixtureStory = storyFixtures.find((candidate) => candidate.id === storyId && candidate.status === 'published');
@@ -218,6 +241,14 @@ export class StoryRepository {
   }
 
   async getChapterById(storyId: string, chapterId: string) {
+    return contentCache.remember(
+      `chapter:${storyId}:${chapterId}`,
+      [`story:${storyId}`, `chapter:${chapterId}`],
+      () => this.getChapterByIdUncached(storyId, chapterId),
+    );
+  }
+
+  private async getChapterByIdUncached(storyId: string, chapterId: string) {
     // Resolve fixture chapters before Prisma so stable demo IDs do not get
     // rejected by PostgreSQL UUID parsing in a connected environment.
     const fixtureChapter = chapterFixtures.find(

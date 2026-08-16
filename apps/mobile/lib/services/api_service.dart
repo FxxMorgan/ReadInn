@@ -126,6 +126,7 @@ class ApiService {
     try {
       final response = await _dio.post(
         '/v1/stories/$storyId/like',
+        data: const <String, dynamic>{},
         options: _authOptions(token),
       );
       final liked = response.data['data']['liked'] as bool? ?? false;
@@ -146,6 +147,7 @@ class ApiService {
     try {
       final response = await _dio.post(
         '/v1/library/$storyId',
+        data: const <String, dynamic>{},
         options: _authOptions(token),
       );
       final saved = response.data['data']['saved'] as bool? ?? false;
@@ -377,14 +379,107 @@ class ApiService {
     return response.data['data'] as Map<String, dynamic>;
   }
 
+  Uri chapterDownloadUri(String storyId, String chapterId) {
+    final base = _dio.options.baseUrl.replaceFirst(RegExp(r'/$'), '');
+    return Uri.parse('$base/v1/stories/$storyId/chapters/$chapterId/download');
+  }
+
+  Future<PublicProfile> fetchPublicProfile(
+    String username, {
+    String? token,
+  }) async {
+    final response = await _dio.get(
+      '/v1/users/$username',
+      options: _authOptions(token),
+    );
+    return PublicProfile.fromJson(
+      response.data['data'] as Map<String, dynamic>,
+    );
+  }
+
+  Future<List<WallPost>> fetchProfileWall(String username) async {
+    final response = await _dio.get('/v1/users/$username/wall');
+    final data = response.data['data'] as List<dynamic>? ?? [];
+    return data
+        .map((item) => WallPost.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<WallPost> postToProfileWall({
+    required String username,
+    required String body,
+    required String token,
+  }) async {
+    final response = await _dio.post(
+      '/v1/users/$username/wall',
+      data: {'body': body},
+      options: _authOptions(token),
+    );
+    return WallPost.fromJson(response.data['data'] as Map<String, dynamic>);
+  }
+
+  Future<bool> toggleFollow(String username, {required String token}) async {
+    final response = await _dio.post(
+      '/v1/users/$username/follow',
+      data: const <String, dynamic>{},
+      options: _authOptions(token),
+    );
+    return response.data['data']['following'] as bool? ?? false;
+  }
+
+  Future<String> uploadMedia({
+    required Uint8List bytes,
+    required String filename,
+    required String mimeType,
+    required String purpose,
+    String? token,
+  }) async {
+    final intentResponse = await _dio.post(
+      '/v1/media/upload-intent',
+      data: {
+        'filename': filename,
+        'mimeType': mimeType,
+        'sizeBytes': bytes.length,
+        'purpose': purpose,
+      },
+      options: _authOptions(token),
+    );
+    final intent = intentResponse.data['data'] as Map<String, dynamic>;
+    final uploadPath = intent['uploadPath'] as String;
+    final headers =
+        Map<String, dynamic>.from(
+            intent['headers'] as Map? ?? const <String, dynamic>{},
+          )
+          ..['Content-Length'] = bytes.length
+          ..addAll(
+            token == null ? const {} : {'Authorization': 'Bearer $token'},
+          );
+    await _dio.put<void>(
+      uploadPath,
+      data: Stream<List<int>>.value(bytes),
+      options: Options(
+        headers: headers,
+        contentType: mimeType,
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    final confirmation = await _dio.post(
+      '/v1/media/${intent['mediaId']}/confirm',
+      data: const <String, dynamic>{},
+      options: _authOptions(token),
+    );
+    return confirmation.data['data']['publicUrl'] as String;
+  }
+
   Future<StorySummary> createStory({
     required String title,
     required String synopsis,
     required String genre,
     required bool isMature,
-    required String coverColor,
     required String authorName,
     required String authorUsername,
+    String? coverUrl,
     String? token,
   }) async {
     final response = await _dio.post(
@@ -394,8 +489,8 @@ class ApiService {
         'synopsis': synopsis,
         'genre': genre,
         'isMature': isMature,
-        'coverColor': coverColor,
         'status': 'published',
+        'coverColor': ?coverUrl,
       },
       options: _authOptions(token),
     );
@@ -420,6 +515,7 @@ class ApiService {
   Future<void> publishStory(String storyId, {required String token}) async {
     await _dio.post(
       '/v1/me/stories/$storyId/publish',
+      data: const <String, dynamic>{},
       options: _authOptions(token),
     );
   }
@@ -439,6 +535,23 @@ class ApiService {
     final chapter = ChapterSummary.fromJson(data);
     _rememberChapter(chapter, content);
     return chapter;
+  }
+
+  Future<void> deleteChapter({
+    required String storyId,
+    required String chapterId,
+    required String token,
+  }) async {
+    await _dio.delete(
+      '/v1/me/stories/$storyId/chapters/$chapterId',
+      options: _authOptions(token),
+    );
+    _content.remove(chapterId);
+    final chapters = _chapters[storyId];
+    if (chapters != null) {
+      chapters.removeWhere((chapter) => chapter.id == chapterId);
+      _replaceStoryChapterCount(storyId, chapters.length);
+    }
   }
 
   void _rememberWriterStory(StorySummary story, String? token) {

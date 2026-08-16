@@ -52,3 +52,36 @@ export interface ChapterRevision {
   createdAt: string;
   reason: string;
 }
+
+export interface ChapterComment {
+  id: string;
+  storyId: string;
+  chapterId: string;
+  authorName: string;
+  authorUsername?: string;
+  body: string;
+  createdAt: string;
+  likes: number;
+  paragraphIndex?: number;
+}
+
+export interface WallPost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorUsername: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface PublicProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  bio: string;
+  avatarUrl?: string | null;
+  followerCount: number;
+  followingCount: number;
+  isFollowing: boolean;
+  stories: StorySummary[];
+}

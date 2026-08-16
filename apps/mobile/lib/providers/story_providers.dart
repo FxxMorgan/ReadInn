@@ -81,6 +81,23 @@ final storyEngagementProvider = FutureProvider.family<StoryEngagement, String>((
       .fetchStoryEngagement(storyId, token: token);
 });
 
+final publicProfileProvider = FutureProvider.family<PublicProfile, String>((
+  ref,
+  username,
+) {
+  final token = ref.watch(authProvider.select((auth) => auth.token));
+  return ref
+      .watch(apiServiceProvider)
+      .fetchPublicProfile(username, token: token);
+});
+
+final profileWallProvider = FutureProvider.family<List<WallPost>, String>((
+  ref,
+  username,
+) {
+  return ref.watch(apiServiceProvider).fetchProfileWall(username);
+});
+
 final readingProgressProvider = FutureProvider.family<ReadingProgress?, String>(
   (ref, storyId) {
     final token = ref.watch(authProvider.select((auth) => auth.token));

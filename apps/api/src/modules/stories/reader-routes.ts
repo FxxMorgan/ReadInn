@@ -31,6 +31,7 @@ type MockComment = {
   chapterId: string;
   authorId: string;
   authorName: string;
+  authorUsername?: string;
   body: string;
   createdAt: string;
   likes: number;
@@ -88,6 +89,28 @@ export function registerReaderRoutes(app: FastifyInstance): void {
     '/v1/stories/:storyId/chapters/:chapterId/comments',
     async (request) => {
       const { storyId, chapterId } = request.params;
+      const isFixture = storyFixtures.some((story) => story.id === storyId);
+      if (!isFixture && await checkDatabaseConnection()) {
+        const comments = await prisma.chapterComment.findMany({
+          where: { storyId, chapterId },
+          orderBy: { createdAt: 'desc' },
+          include: { author: { include: { profile: true } } },
+        });
+        return {
+          data: comments.map((comment) => ({
+            id: comment.id,
+            storyId: comment.storyId,
+            chapterId: comment.chapterId,
+            authorId: comment.authorId,
+            authorName: comment.authorName,
+            authorUsername: comment.author?.username,
+            body: comment.body,
+            createdAt: comment.createdAt.toISOString(),
+            likes: comment.likes,
+            ...(comment.paragraphIndex !== null ? { paragraphIndex: comment.paragraphIndex } : {}),
+          })),
+        };
+      }
       return {
         data: mockComments
           .filter((comment) => comment.storyId === storyId && comment.chapterId === chapterId)
@@ -100,12 +123,62 @@ export function registerReaderRoutes(app: FastifyInstance): void {
     '/v1/stories/:storyId/chapters/:chapterId/comments',
     async (request, reply) => {
       const body = commentSchema.parse(request.body);
+      const isFixture = storyFixtures.some((story) => story.id === request.params.storyId);
+      if (!isFixture && await checkDatabaseConnection()) {
+        const chapter = await prisma.chapter.findFirst({
+          where: {
+            id: request.params.chapterId,
+            storyId: request.params.storyId,
+            status: { not: 'archived' },
+          },
+          select: { id: true },
+        });
+        if (!chapter) {
+          return reply.status(404).send({
+            error: { code: 'CHAPTER_NOT_FOUND', message: 'No se encontro el capitulo.' },
+          });
+        }
+        const userId = authenticatedUserId(request);
+        const author = userId
+          ? await prisma.user.findUnique({
+              where: { id: userId },
+              include: { profile: true },
+            }).catch(() => null)
+          : null;
+        const comment = await prisma.chapterComment.create({
+          data: {
+            storyId: request.params.storyId,
+            chapterId: request.params.chapterId,
+            ...(author ? { authorId: author.id } : {}),
+            authorName: author?.profile?.displayName ?? body.authorName ?? 'Invitado',
+            body: body.body,
+            ...(body.paragraphIndex !== undefined ? { paragraphIndex: body.paragraphIndex } : {}),
+          },
+          include: { author: true },
+        });
+        return reply.status(201).send({
+          data: {
+            id: comment.id,
+            storyId: comment.storyId,
+            chapterId: comment.chapterId,
+            authorId: comment.authorId,
+            authorName: comment.authorName,
+            authorUsername: comment.author?.username,
+            body: comment.body,
+            createdAt: comment.createdAt.toISOString(),
+            likes: comment.likes,
+            ...(comment.paragraphIndex !== null ? { paragraphIndex: comment.paragraphIndex } : {}),
+          },
+        });
+      }
+      const authorUsername = bearerClaims(request.headers.authorization)?.email?.split('@')[0];
       const comment: MockComment = {
         id: `comment-${crypto.randomUUID()}`,
         storyId: request.params.storyId,
         chapterId: request.params.chapterId,
         authorId: requestUserId(request),
         authorName: body.authorName ?? 'Invitado',
+        ...(authorUsername ? { authorUsername } : {}),
         body: body.body,
         createdAt: new Date().toISOString(),
         likes: 0,
@@ -131,7 +204,11 @@ export function registerReaderRoutes(app: FastifyInstance): void {
     const isDbConnected = await checkDatabaseConnection();
     if (isDbConnected && !isFixture) {
       const userId = authenticatedUserId(request);
-      const [ratings, userRating, reads] = await Promise.all([
+      const story = await prisma.story.findUnique({
+        where: { id: request.params.storyId },
+        select: { authorId: true },
+      });
+      const [ratings, userRating, reads, comments, followers] = await Promise.all([
         prisma.storyRating.aggregate({
           where: { storyId: request.params.storyId },
           _avg: { rating: true },
@@ -146,13 +223,15 @@ export function registerReaderRoutes(app: FastifyInstance): void {
         prisma.readingEvent.count({
           where: { storyId: request.params.storyId, eventType: 'chapter_opened' },
         }),
+        prisma.chapterComment.count({ where: { storyId: request.params.storyId } }),
+        story ? prisma.userFollow.count({ where: { followingId: story.authorId } }) : 0,
       ]);
       return {
         data: {
           storyId: request.params.storyId,
           reads,
-          followers: 0,
-          comments: mockComments.filter((item) => item.storyId === request.params.storyId).length,
+          followers,
+          comments,
           averageRating: ratings._avg.rating ?? 0,
           ratingCount: ratings._count._all,
           userRating: userRating?.rating ?? 0,

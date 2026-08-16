@@ -18,12 +18,19 @@ interface MediaRecord {
   status: 'pending' | 'ready';
   uploadUrl: string;
   publicUrl: string;
+  key: string;
   createdAt: string;
 }
 
 const mockMediaStore = new Map<string, MediaRecord>();
 
 export function registerMediaRoutes(app: FastifyInstance): void {
+  app.addContentTypeParser(
+    ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+    { parseAs: 'buffer', bodyLimit: 5 * 1024 * 1024 },
+    (_request, body, done) => done(null, body),
+  );
+
   // Request Presigned Upload Intent URL (Cloudflare R2 / MinIO / S3)
   app.post('/v1/media/upload-intent', async (request, reply) => {
     const body = uploadIntentSchema.parse(request.body);
@@ -43,6 +50,7 @@ export function registerMediaRoutes(app: FastifyInstance): void {
       status: 'pending',
       uploadUrl: presigned.uploadUrl,
       publicUrl: presigned.publicUrl,
+      key: presigned.key,
       createdAt: new Date().toISOString(),
     };
 
@@ -52,15 +60,41 @@ export function registerMediaRoutes(app: FastifyInstance): void {
       data: {
         mediaId: record.mediaId,
         uploadUrl: record.uploadUrl,
+        uploadPath: `/v1/media/${record.mediaId}/upload`,
         publicUrl: record.publicUrl,
         method: 'PUT',
         headers: {
           'Content-Type': body.mimeType,
+          'Cache-Control': 'public, max-age=31536000, immutable',
         },
         expiresInSeconds: presigned.expiresInSeconds,
       },
     });
   });
+
+  app.put<{ Params: { mediaId: string }; Body: Buffer }>(
+    '/v1/media/:mediaId/upload',
+    async (request, reply) => {
+      const record = mockMediaStore.get(request.params.mediaId);
+      if (!record) {
+        return reply.status(404).send({
+          error: { code: 'MEDIA_NOT_FOUND', message: 'No se encontro la carga solicitada.' },
+        });
+      }
+      if (!Buffer.isBuffer(request.body) || request.body.length === 0) {
+        return reply.status(422).send({
+          error: { code: 'INVALID_MEDIA', message: 'La imagen esta vacia o no es valida.' },
+        });
+      }
+      if (request.body.length > record.sizeBytes) {
+        return reply.status(413).send({
+          error: { code: 'MEDIA_TOO_LARGE', message: 'La imagen supera el tamano declarado.' },
+        });
+      }
+      await s3MediaService.uploadObject(record.key, record.mimeType, request.body);
+      return reply.status(204).send();
+    },
+  );
 
   // Confirm upload completed
   app.post<{ Params: { mediaId: string } }>('/v1/media/:mediaId/confirm', async (request) => {

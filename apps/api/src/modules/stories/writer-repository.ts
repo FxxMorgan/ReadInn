@@ -51,6 +51,49 @@ export class WriterRepository {
     return prisma.$transaction(async(tx)=>{const current=await tx.chapter.findFirst({where:{id:params.chapterId,story:{authorId:params.authorId}}});if(!current)return null;if(current.contentVersion!==params.expectedVersion)return{conflict:true,currentVersion:current.contentVersion};await tx.chapterRevision.create({data:{chapterId:current.id,version:current.contentVersion,title:current.title,contentJson:current.contentJson as Prisma.InputJsonValue,plainText:current.plainText,reason:'autosave'}});const stale=await tx.chapterRevision.findMany({where:{chapterId:current.id},orderBy:{createdAt:'desc'},skip:30,select:{id:true}});if(stale.length)await tx.chapterRevision.deleteMany({where:{id:{in:stale.map((item)=>item.id)}}});const chapter=await tx.chapter.update({where:{id:current.id},data:{title:params.title,contentJson:params.content as Prisma.InputJsonValue,plainText:params.plainText,contentVersion:{increment:1},...count}});if(current.status==='published'&&current.wordCount!==count.wordCount)await tx.story.update({where:{id:current.storyId},data:{wordCount:{increment:count.wordCount-current.wordCount}}});return{...chapter,content:chapter.contentJson};});
   }
 
+  async deleteChapter(authorId: string, storyId: string, chapterId: string) {
+    if (!(await checkDatabaseConnection())) {
+      const story = (offlineStoriesByAuthor.get(authorId) ?? []).find((item) => item.id === storyId);
+      const index = chapterFixtures.findIndex((item) => item.id === chapterId && item.storyId === storyId);
+      if (!story || index < 0) return null;
+      const [chapter] = chapterFixtures.splice(index, 1);
+      offlineChapterMeta.delete(chapterId);
+      offlineRevisions.delete(chapterId);
+      chapterFixtures
+        .filter((item) => item.storyId === storyId)
+        .sort((a, b) => a.position - b.position)
+        .forEach((item, position) => { item.position = position + 1; });
+      story.chapterCount = Math.max(0, story.chapterCount - 1);
+      return chapter;
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const chapter = await tx.chapter.findFirst({
+        where: { id: chapterId, storyId, story: { authorId } },
+      });
+      if (!chapter) return null;
+      await tx.chapter.delete({ where: { id: chapter.id } });
+      await tx.chapter.updateMany({
+        where: { storyId, position: { gt: chapter.position } },
+        data: { position: { increment: 100000 } },
+      });
+      await tx.chapter.updateMany({
+        where: { storyId, position: { gt: chapter.position + 100000 } },
+        data: { position: { decrement: 100001 } },
+      });
+      if (chapter.status === 'published') {
+        await tx.story.update({
+          where: { id: storyId },
+          data: {
+            publishedChapterCount: { decrement: 1 },
+            wordCount: { decrement: chapter.wordCount },
+          },
+        });
+      }
+      return chapter;
+    });
+  }
+
   async publishStory(authorId:string,storyId:string){if(!(await checkDatabaseConnection())){const story=(offlineStoriesByAuthor.get(authorId)??[]).find((item)=>item.id===storyId);if(!story)return null;story.status='published';if(!storyFixtures.some((item)=>item.id===story.id))storyFixtures.unshift(story);return story;}return prisma.story.updateMany({where:{id:storyId,authorId},data:{status:'published',publishedAt:new Date(),archivedAt:null}});}
   async publishChapter(authorId:string,chapterId:string){if(!(await checkDatabaseConnection())){const meta=offlineChapterMeta.get(chapterId);if(meta)meta.status='published';return meta??null;}return prisma.$transaction(async(tx)=>{const current=await tx.chapter.findFirst({where:{id:chapterId,story:{authorId}}});if(!current)return null;const wasPublished=current.status==='published';const chapter=await tx.chapter.update({where:{id:chapterId},data:{status:'published',publishedAt:new Date()}});if(!wasPublished)await tx.story.update({where:{id:chapter.storyId},data:{publishedChapterCount:{increment:1},wordCount:{increment:chapter.wordCount}}});return chapter;});}
   async archiveStory(authorId:string,storyId:string){if(!(await checkDatabaseConnection())){const story=(offlineStoriesByAuthor.get(authorId)??[]).find((item)=>item.id===storyId);if(!story)return null;story.status='archived';const publicIndex=storyFixtures.findIndex((item)=>item.id===storyId);if(publicIndex>=0)storyFixtures.splice(publicIndex,1);return story;}return prisma.story.updateMany({where:{id:storyId,authorId},data:{status:'archived',archivedAt:new Date()}});}

@@ -1,12 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { buildApp } from './app.js';
 import { loadConfig } from './config/env.js';
 import { accessToken } from './shared/auth.js';
+import { s3MediaService } from './modules/media/s3-storage.js';
+
+vi.mock('./shared/db.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./shared/db.js')>();
+  return { ...original, checkDatabaseConnection: async () => false };
+});
 
 const config = loadConfig({
   NODE_ENV: 'test',
   APP_WEB_URL: 'http://localhost:8080',
-  LOG_LEVEL: 'silent'
+  LOG_LEVEL: 'silent',
+  CACHE_ENABLED: 'false',
 });
 
 describe('ReadInn API', () => {
@@ -16,6 +26,40 @@ describe('ReadInn API', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ data: { status: 'ok' } });
+    await app.close();
+  });
+
+  it('uploads media through the API before confirming it', async () => {
+    const uploadSpy = vi.spyOn(s3MediaService, 'uploadObject').mockResolvedValue();
+    const app = await buildApp(config);
+    const intentResponse = await app.inject({
+      method: 'POST',
+      url: '/v1/media/upload-intent',
+      payload: {
+        filename: 'cover.png',
+        mimeType: 'image/png',
+        sizeBytes: 4,
+        purpose: 'cover',
+      },
+    });
+    const intent = intentResponse.json<{ data: { mediaId: string; uploadPath: string } }>().data;
+    const uploadResponse = await app.inject({
+      method: 'PUT',
+      url: intent.uploadPath,
+      headers: { 'content-type': 'image/png' },
+      payload: Buffer.from([1, 2, 3, 4]),
+    });
+    const confirmation = await app.inject({
+      method: 'POST',
+      url: `/v1/media/${intent.mediaId}/confirm`,
+    });
+
+    expect(intentResponse.statusCode).toBe(201);
+    expect(uploadResponse.statusCode).toBe(204);
+    expect(uploadSpy).toHaveBeenCalledOnce();
+    expect(confirmation.statusCode).toBe(200);
+    expect(confirmation.json<{ data: { status: string } }>().data.status).toBe('ready');
+    uploadSpy.mockRestore();
     await app.close();
   });
 
@@ -52,6 +96,20 @@ describe('ReadInn API', () => {
     expect(chapterBody.data.content).toHaveLength(4);
     expect(missingResponse.statusCode).toBe(404);
     expect(missingBody.error.code).toBe('CHAPTER_NOT_FOUND');
+    await app.close();
+  });
+
+  it('downloads a published chapter as Markdown', async () => {
+    const app = await buildApp(config);
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/download',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toContain('text/markdown');
+    expect(response.headers['content-disposition']).toContain('attachment');
+    expect(response.body).toContain('# El mapa bajo la sal');
     await app.close();
   });
 
@@ -114,6 +172,42 @@ describe('ReadInn API', () => {
     await app.close();
   });
 
+  it('opens public profiles, follows authors, and writes on their wall', async () => {
+    const app = await buildApp(config);
+    const token = accessToken('user-social-reader', 'social-reader@example.com');
+    const headers = { authorization: `Bearer ${token}` };
+
+    const profile = await app.inject({
+      method: 'GET',
+      url: '/v1/users/marina-solis',
+      headers,
+    });
+    expect(profile.statusCode).toBe(200);
+    expect(profile.json<{ data: { stories: unknown[] } }>().data.stories.length).toBeGreaterThan(0);
+
+    const follow = await app.inject({
+      method: 'POST',
+      url: '/v1/users/marina-solis/follow',
+      headers,
+    });
+    expect(follow.statusCode).toBe(200);
+    expect(follow.json<{ data: { following: boolean } }>().data.following).toBe(true);
+
+    const post = await app.inject({
+      method: 'POST',
+      url: '/v1/users/marina-solis/wall',
+      headers,
+      payload: { body: 'Espero con ganas el siguiente capitulo.' },
+    });
+    expect(post.statusCode).toBe(201);
+    const wall = await app.inject({ method: 'GET', url: '/v1/users/marina-solis/wall' });
+    expect(wall.statusCode).toBe(200);
+    expect(wall.json<{ data: Array<{ body: string }> }>().data[0]?.body).toBe(
+      'Espero con ganas el siguiente capitulo.',
+    );
+    await app.close();
+  });
+
   it('keeps writer drafts private until publishing and supports archive restore', async () => {
     const app = await buildApp(config);
     const token = accessToken('user-web-writer', 'writer@example.com');
@@ -149,6 +243,10 @@ describe('ReadInn API', () => {
     expect((await app.inject({ method: 'POST', url: `/v1/me/stories/${story.id}/chapters/${chapter.id}/publish`, headers })).statusCode).toBe(200);
     expect((await app.inject({ method: 'POST', url: `/v1/me/stories/${story.id}/publish`, headers })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'DELETE', url: `/v1/me/stories/${story.id}/chapters/${chapter.id}`, headers })).statusCode).toBe(200);
+    const afterDelete = await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` });
+    expect(afterDelete.statusCode).toBe(200);
+    expect(afterDelete.json<{ data: { chapters: unknown[] } }>().data.chapters).toHaveLength(0);
     expect((await app.inject({ method: 'DELETE', url: `/v1/me/stories/${story.id}`, headers })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` })).statusCode).toBe(404);
     expect((await app.inject({ method: 'POST', url: `/v1/me/stories/${story.id}/restore`, headers })).statusCode).toBe(200);
@@ -185,5 +283,64 @@ describe('ReadInn API', () => {
     expect((await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` })).statusCode).toBe(200);
 
     await app.close();
+  });
+
+  it('caches book content on disk and invalidates it after an author edit', async () => {
+    const cacheDir = await mkdtemp(path.join(tmpdir(), 'readinn-cache-'));
+    const cacheConfig = loadConfig({
+      NODE_ENV: 'test',
+      APP_WEB_URL: 'http://localhost:8080',
+      LOG_LEVEL: 'silent',
+      CACHE_ENABLED: 'true',
+      CACHE_DIR: cacheDir,
+      CACHE_TTL_SECONDS: '900',
+    });
+    const app = await buildApp(cacheConfig);
+    try {
+      const token = accessToken('user-cache-writer', 'cache@example.com');
+      const headers = { authorization: `Bearer ${token}` };
+      const createdStory = await app.inject({
+        method: 'POST',
+        url: '/v1/stories',
+        headers,
+        payload: {
+          title: 'Historia cacheada',
+          synopsis: 'Una historia para verificar la invalidacion del cache.',
+          genre: 'Drama',
+          status: 'draft',
+        },
+      });
+      const story = createdStory.json<{ data: { id: string } }>().data;
+      const createdChapter = await app.inject({
+        method: 'POST',
+        url: `/v1/stories/${story.id}/chapters`,
+        headers,
+        payload: { title: 'Titulo inicial', content: ['Texto inicial'], status: 'draft' },
+      });
+      const chapter = createdChapter.json<{ data: { id: string; contentVersion: number } }>().data;
+      await app.inject({ method: 'POST', url: `/v1/me/stories/${story.id}/chapters/${chapter.id}/publish`, headers });
+      await app.inject({ method: 'POST', url: `/v1/me/stories/${story.id}/publish`, headers });
+      await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` });
+      expect((await readdir(cacheDir)).some((file) => file.endsWith('.json'))).toBe(true);
+
+      await app.inject({
+        method: 'PATCH',
+        url: `/v1/me/stories/${story.id}/chapters/${chapter.id}`,
+        headers,
+        payload: {
+          title: 'Titulo actualizado',
+          content: ['Texto actualizado'],
+          plainText: 'Texto actualizado',
+          expectedVersion: chapter.contentVersion,
+        },
+      });
+      const refreshed = await app.inject({ method: 'GET', url: `/v1/stories/${story.id}` });
+      expect(refreshed.json<{ data: { chapters: Array<{ title: string }> } }>().data.chapters[0]?.title).toBe(
+        'Titulo actualizado',
+      );
+    } finally {
+      await app.close();
+      await rm(cacheDir, { recursive: true, force: true });
+    }
   });
 });

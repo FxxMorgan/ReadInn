@@ -307,16 +307,26 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: user == null
-                            ? () => AuthDialog.show(context)
-                            : _editProfile,
-                        child: Text(
-                          user == null ? 'Iniciar sesión' : 'Editar perfil',
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton(
+                          onPressed: user == null
+                              ? () => AuthDialog.show(context)
+                              : _editProfile,
+                          child: Text(
+                            user == null ? 'Iniciar sesión' : 'Editar perfil',
+                          ),
                         ),
-                      ),
+                        if (user != null) ...[
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () =>
+                                context.push('/users/${user.username}'),
+                            child: const Text('Ver perfil público'),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -411,7 +421,10 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                             child: BookCover(
                               title: favorite.title,
                               author: favorite.author,
-                              asset: asset,
+                              asset: favorite.coverColor.startsWith('http')
+                                  ? null
+                                  : asset,
+                              imageUrl: favorite.coverColor,
                             ),
                           ),
                         ),

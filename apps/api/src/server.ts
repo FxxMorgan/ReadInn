@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildApp } from './app.js';
 import { loadConfig } from './config/env.js';
 
 // Manually parse .env if present
@@ -21,6 +20,7 @@ if (fs.existsSync(envPath)) {
 }
 
 const config = loadConfig();
+const { buildApp } = await import('./app.js');
 const app = await buildApp(config);
 
 try {

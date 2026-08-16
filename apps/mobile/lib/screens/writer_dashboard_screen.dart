@@ -204,7 +204,10 @@ class _WriterStoryCard extends StatelessWidget {
             children: [
               BookCover(
                 title: story.title,
-                asset: 'assets/images/writers_dream.jpg',
+                asset: story.coverColor.startsWith('http')
+                    ? null
+                    : 'assets/images/writers_dream.jpg',
+                imageUrl: story.coverColor,
                 width: 58,
                 height: 86,
               ),

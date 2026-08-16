@@ -8,6 +8,7 @@ import 'screens/manage_story_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/story_detail_screen.dart';
 import 'screens/user_profile_screen.dart';
+import 'screens/public_profile_screen.dart';
 import 'screens/writer_dashboard_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -51,6 +52,11 @@ final _router = GoRouter(
     GoRoute(
       path: '/profile',
       builder: (context, state) => const UserProfileScreen(),
+    ),
+    GoRoute(
+      path: '/users/:username',
+      builder: (context, state) =>
+          PublicProfileScreen(username: state.pathParameters['username'] ?? ''),
     ),
     GoRoute(
       path: '/library',

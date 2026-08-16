@@ -45,6 +45,11 @@ model User {
   profile            UserProfile?
   stories            Story[]
   ratings            StoryRating[]
+  chapterComments    ChapterComment[]
+  wallPostsAuthored  WallPost[]     @relation("WallPostAuthor")
+  wallPostsReceived  WallPost[]     @relation("WallPostProfile")
+  following          UserFollow[]   @relation("Follower")
+  followers          UserFollow[]   @relation("Following")
 
   @@map("users")
 }
@@ -85,6 +90,7 @@ model Story {
   genres               StoryGenre[]
   ratings              StoryRating[]
   readingEvents        ReadingEvent[]
+  comments             ChapterComment[]
 
   @@index([authorId, updatedAt(sort: Desc)])
   @@index([status, publishedAt(sort: Desc)])
@@ -131,11 +137,58 @@ model Chapter {
   story             Story         @relation(fields: [storyId], references: [id], onDelete: Cascade)
   revisions         ChapterRevision[]
   readingEvents     ReadingEvent[]
+  comments          ChapterComment[]
 
   @@unique([storyId, slug])
   @@unique([storyId, position])
   @@index([storyId, status, position])
   @@map("chapters")
+}
+
+model ChapterComment {
+  id             String   @id @default(uuid()) @db.Uuid
+  storyId        String   @map("story_id") @db.Uuid
+  chapterId      String   @map("chapter_id") @db.Uuid
+  authorId       String?  @map("author_id") @db.Uuid
+  authorName     String   @map("author_name") @db.VarChar(80)
+  body           String   @db.VarChar(1000)
+  paragraphIndex Int?     @map("paragraph_index")
+  likes          Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  story          Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  chapter        Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  author         User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([chapterId, createdAt(sort: Desc)])
+  @@index([storyId])
+  @@map("chapter_comments")
+}
+
+model UserFollow {
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt(sort: Desc)])
+  @@map("user_follows")
+}
+
+model WallPost {
+  id            String   @id @default(uuid()) @db.Uuid
+  profileUserId String   @map("profile_user_id") @db.Uuid
+  authorId      String   @map("author_id") @db.Uuid
+  body          String   @db.VarChar(1000)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  profileUser   User     @relation("WallPostProfile", fields: [profileUserId], references: [id], onDelete: Cascade)
+  author        User     @relation("WallPostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([profileUserId, createdAt(sort: Desc)])
+  @@map("wall_posts")
 }
 
 model ChapterRevision {

@@ -2,6 +2,10 @@ import type { UserAccount } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_READINN_API_URL ?? '/api/readinn';
 
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -9,7 +13,7 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     credentials: 'include',
     headers: {

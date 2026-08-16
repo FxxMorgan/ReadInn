@@ -10,7 +10,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import Typography from '@tiptap/extension-typography';
 import Underline from '@tiptap/extension-underline';
 import { AlignCenter, AlignLeft, AlignRight, Bold, Heading2, ImagePlus, Italic, Link2, List, ListOrdered, Quote, Redo2, SeparatorHorizontal, Underline as UnderlineIcon, Undo2 } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, apiUrl } from '@/lib/api';
 
 export interface EditorDocument { type: 'doc'; content?: unknown[] }
 
@@ -33,8 +33,8 @@ export function RichEditor({ initialContent, onChange }: RichEditorProps) {
 
   const addImage = useCallback(async (file: File) => {
     if (!editor) return;
-    const intent = await apiFetch<{ mediaId: string; uploadUrl: string; publicUrl: string; headers: Record<string,string> }>('/v1/media/upload-intent', { method: 'POST', body: JSON.stringify({ filename: file.name, mimeType: file.type, sizeBytes: file.size, purpose: 'chapter' }) });
-    const upload = await fetch(intent.uploadUrl, { method: 'PUT', headers: intent.headers, body: file });
+    const intent = await apiFetch<{ mediaId: string; uploadPath: string }>('/v1/media/upload-intent', { method: 'POST', body: JSON.stringify({ filename: file.name, mimeType: file.type, sizeBytes: file.size, purpose: 'chapter' }) });
+    const upload = await fetch(apiUrl(intent.uploadPath), { method: 'PUT', credentials: 'include', headers: { 'Content-Type': file.type }, body: file });
     if (!upload.ok) throw new Error('No pudimos subir la imagen.');
     const confirmed = await apiFetch<{ publicUrl: string }>(`/v1/media/${intent.mediaId}/confirm`, { method: 'POST' });
     editor.chain().focus().setImage({ src: confirmed.publicUrl, alt: file.name }).run();

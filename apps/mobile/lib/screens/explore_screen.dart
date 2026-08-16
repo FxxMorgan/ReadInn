@@ -305,7 +305,8 @@ class _StoryGrid extends StatelessWidget {
                     child: BookCover(
                       title: story.title,
                       author: story.author,
-                      asset: asset,
+                      asset: story.coverColor.startsWith('http') ? null : asset,
+                      imageUrl: story.coverColor,
                       color: coverColor(story.coverColor),
                     ),
                   ),

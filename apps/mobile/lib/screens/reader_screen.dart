@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
@@ -147,6 +148,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
       return;
     }
+    if (value == 'download') {
+      final launched = await launchUrl(
+        ref
+            .read(apiServiceProvider)
+            .chapterDownloadUri(widget.storyId, widget.chapterId),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No pudimos iniciar la descarga.')),
+        );
+      }
+      return;
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -213,6 +228,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
             onSelected: (value) => _handleMenu(value, nextChapter == null),
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'mark', child: Text('Marcar como leído')),
+              PopupMenuItem(
+                value: 'download',
+                child: Text('Descargar capítulo'),
+              ),
               PopupMenuItem(value: 'share', child: Text('Compartir capítulo')),
             ],
           ),
@@ -707,9 +726,17 @@ class _Comment extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                comment.authorName,
-                style: TextStyle(color: textColor, fontWeight: FontWeight.w700),
+              InkWell(
+                onTap: comment.authorUsername == null
+                    ? null
+                    : () => context.push('/users/${comment.authorUsername}'),
+                child: Text(
+                  comment.authorName,
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -779,24 +806,38 @@ class _ReaderSettingsSheet extends ConsumerWidget {
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            SegmentedButton<ReaderFontFamily>(
-              segments: const [
-                ButtonSegment(
+            DropdownButtonFormField<ReaderFontFamily>(
+              key: ValueKey(settings.fontFamily),
+              initialValue: settings.fontFamily,
+              items: const [
+                DropdownMenuItem(
                   value: ReaderFontFamily.serif,
-                  label: Text('Serif'),
+                  child: Text('Merriweather'),
                 ),
-                ButtonSegment(
+                DropdownMenuItem(
+                  value: ReaderFontFamily.lora,
+                  child: Text('Lora'),
+                ),
+                DropdownMenuItem(
+                  value: ReaderFontFamily.baskerville,
+                  child: Text('Libre Baskerville'),
+                ),
+                DropdownMenuItem(
                   value: ReaderFontFamily.sans,
-                  label: Text('Sans'),
+                  child: Text('Source Sans'),
                 ),
-                ButtonSegment(
+                DropdownMenuItem(
+                  value: ReaderFontFamily.accessible,
+                  child: Text('Atkinson Hyperlegible'),
+                ),
+                DropdownMenuItem(
                   value: ReaderFontFamily.mono,
-                  label: Text('Mono'),
+                  child: Text('JetBrains Mono'),
                 ),
               ],
-              selected: {settings.fontFamily},
-              onSelectionChanged: (selection) =>
-                  notifier.setFontFamily(selection.first),
+              onChanged: (font) {
+                if (font != null) notifier.setFontFamily(font);
+              },
             ),
             const SizedBox(height: 20),
             const Text('Tema', style: TextStyle(fontWeight: FontWeight.w700)),

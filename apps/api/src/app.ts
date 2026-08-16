@@ -13,8 +13,15 @@ import { registerAnalyticsRoutes } from './modules/stories/analytics-routes.js';
 import { registerModerationRoutes } from './modules/stories/moderation-routes.js';
 import { registerMediaRoutes } from './modules/media/routes.js';
 import { checkDatabaseConnection } from './shared/db.js';
+import { contentCache } from './shared/content-cache.js';
+import { registerSocialRoutes } from './modules/social/routes.js';
 
 export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
+  contentCache.configure({
+    enabled: config.CACHE_ENABLED,
+    directory: config.CACHE_DIR,
+    ttlSeconds: config.CACHE_TTL_SECONDS,
+  });
   const app = Fastify({
     logger: {
       level: config.LOG_LEVEL,
@@ -53,6 +60,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   registerAnalyticsRoutes(app);
   registerModerationRoutes(app);
   registerMediaRoutes(app);
+  registerSocialRoutes(app);
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {

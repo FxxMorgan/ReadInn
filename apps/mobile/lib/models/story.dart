@@ -149,6 +149,7 @@ class ChapterComment {
   final String storyId;
   final String chapterId;
   final String authorName;
+  final String? authorUsername;
   final String body;
   final DateTime createdAt;
   final int likes;
@@ -159,6 +160,7 @@ class ChapterComment {
     required this.storyId,
     required this.chapterId,
     required this.authorName,
+    this.authorUsername,
     required this.body,
     required this.createdAt,
     required this.likes,
@@ -170,11 +172,78 @@ class ChapterComment {
     storyId: json['storyId'] as String? ?? '',
     chapterId: json['chapterId'] as String? ?? '',
     authorName: json['authorName'] as String? ?? 'Invitado',
+    authorUsername: json['authorUsername'] as String?,
     body: json['body'] as String? ?? '',
     createdAt:
         DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
     likes: (json['likes'] as num?)?.toInt() ?? 0,
     paragraphIndex: (json['paragraphIndex'] as num?)?.toInt(),
+  );
+}
+
+class WallPost {
+  final String id;
+  final String authorId;
+  final String authorName;
+  final String authorUsername;
+  final String body;
+  final DateTime createdAt;
+
+  const WallPost({
+    required this.id,
+    required this.authorId,
+    required this.authorName,
+    required this.authorUsername,
+    required this.body,
+    required this.createdAt,
+  });
+
+  factory WallPost.fromJson(Map<String, dynamic> json) => WallPost(
+    id: json['id'] as String? ?? '',
+    authorId: json['authorId'] as String? ?? '',
+    authorName: json['authorName'] as String? ?? 'Usuario',
+    authorUsername: json['authorUsername'] as String? ?? '',
+    body: json['body'] as String? ?? '',
+    createdAt:
+        DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+  );
+}
+
+class PublicProfile {
+  final String id;
+  final String username;
+  final String displayName;
+  final String bio;
+  final String? avatarUrl;
+  final int followerCount;
+  final int followingCount;
+  final bool isFollowing;
+  final List<StorySummary> stories;
+
+  const PublicProfile({
+    required this.id,
+    required this.username,
+    required this.displayName,
+    required this.bio,
+    this.avatarUrl,
+    required this.followerCount,
+    required this.followingCount,
+    required this.isFollowing,
+    required this.stories,
+  });
+
+  factory PublicProfile.fromJson(Map<String, dynamic> json) => PublicProfile(
+    id: json['id'] as String? ?? '',
+    username: json['username'] as String? ?? '',
+    displayName: json['displayName'] as String? ?? 'Usuario',
+    bio: json['bio'] as String? ?? '',
+    avatarUrl: json['avatarUrl'] as String?,
+    followerCount: (json['followerCount'] as num?)?.toInt() ?? 0,
+    followingCount: (json['followingCount'] as num?)?.toInt() ?? 0,
+    isFollowing: json['isFollowing'] as bool? ?? false,
+    stories: (json['stories'] as List<dynamic>? ?? [])
+        .map((item) => StorySummary.fromJson(item as Map<String, dynamic>))
+        .toList(),
   );
 }
 

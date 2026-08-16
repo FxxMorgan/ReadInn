@@ -40,9 +40,16 @@ async function proxy(request: NextRequest, context: { params: { path: string[] }
       }
     }
   }
+  const responseHeaders = new Headers({
+    'Content-Type': response.headers.get('content-type') ?? 'application/json',
+  });
+  for (const header of ['content-disposition', 'cache-control', 'etag']) {
+    const value = response.headers.get(header);
+    if (value) responseHeaders.set(header, value);
+  }
   const nextResponse = new NextResponse(response.body, {
     status: response.status,
-    headers: { 'Content-Type': response.headers.get('content-type') ?? 'application/json' },
+    headers: responseHeaders,
   });
   if (refreshedAccess) nextResponse.cookies.set('readinn_access', refreshedAccess, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 });
   if (refreshedRefresh) nextResponse.cookies.set('readinn_refresh', refreshedRefresh, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 24 * 30 });

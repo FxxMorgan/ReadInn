@@ -34,8 +34,8 @@ class ReadInnShell extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               child: Image.asset(
                 'assets/images/readinn_logo.png',
-                width: 28,
-                height: 28,
+                width: 38,
+                height: 38,
                 fit: BoxFit.cover,
               ),
             ),
@@ -114,6 +114,7 @@ class BookCover extends StatelessWidget {
   final String title;
   final String? author;
   final String? asset;
+  final String? imageUrl;
   final Color color;
   final double? width;
   final double? height;
@@ -123,6 +124,7 @@ class BookCover extends StatelessWidget {
     required this.title,
     this.author,
     this.asset,
+    this.imageUrl,
     this.color = ReadInnColors.indigo,
     this.width,
     this.height,
@@ -130,7 +132,7 @@ class BookCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = asset == null
+    final fallback = asset == null
         ? _FallbackCover(title: title, author: author, color: color)
         : Image.asset(
             asset!,
@@ -138,6 +140,13 @@ class BookCover extends StatelessWidget {
             errorBuilder: (context, error, stackTrace) =>
                 _FallbackCover(title: title, author: author, color: color),
           );
+    final content = imageUrl?.startsWith('http') == true
+        ? Image.network(
+            imageUrl!,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => fallback,
+          )
+        : fallback;
     return Container(
       width: width,
       height: height,

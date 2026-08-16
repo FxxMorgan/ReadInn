@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
@@ -91,7 +92,10 @@ class StoryDetailScreen extends ConsumerWidget {
                       BookCover(
                         title: story.title,
                         author: story.author,
-                        asset: 'assets/images/silent_orbit.jpg',
+                        asset: story.coverColor.startsWith('http')
+                            ? null
+                            : 'assets/images/silent_orbit.jpg',
+                        imageUrl: story.coverColor,
                         width: 128,
                         height: 190,
                       ),
@@ -103,11 +107,15 @@ class StoryDetailScreen extends ConsumerWidget {
                             ?.copyWith(fontWeight: FontWeight.w800),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        'Por ${story.author}',
-                        style: const TextStyle(
-                          color: ReadInnColors.primaryDeep,
-                          fontWeight: FontWeight.w700,
+                      InkWell(
+                        onTap: () =>
+                            context.push('/users/${story.authorUsername}'),
+                        child: Text(
+                          'Por ${story.author}',
+                          style: const TextStyle(
+                            color: ReadInnColors.primaryDeep,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -324,6 +332,14 @@ class StoryDetailScreen extends ConsumerWidget {
                             onTap: () => context.push(
                               '/story/${story.id}/read/${chapter.id}',
                             ),
+                            onDownload: () async {
+                              await launchUrl(
+                                ref
+                                    .read(apiServiceProvider)
+                                    .chapterDownloadUri(story.id, chapter.id),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            },
                           );
                         }),
                       ],
@@ -390,12 +406,14 @@ class _ChapterRow extends StatelessWidget {
   final String readTime;
   final bool seen;
   final VoidCallback onTap;
+  final VoidCallback onDownload;
   const _ChapterRow({
     required this.index,
     required this.title,
     required this.readTime,
     required this.seen,
     required this.onTap,
+    required this.onDownload,
   });
   @override
   Widget build(BuildContext context) => InkWell(
@@ -454,7 +472,14 @@ class _ChapterRow extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.chevron_right_rounded, color: ReadInnColors.muted),
+          IconButton(
+            tooltip: 'Descargar capitulo',
+            onPressed: onDownload,
+            icon: const Icon(
+              Icons.download_outlined,
+              color: ReadInnColors.muted,
+            ),
+          ),
         ],
       ),
     ),

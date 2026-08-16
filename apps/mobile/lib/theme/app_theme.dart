@@ -29,7 +29,7 @@ class ReadInnColors {
 
 enum ReaderThemeMode { light, sepia, dark, night }
 
-enum ReaderFontFamily { serif, sans, mono }
+enum ReaderFontFamily { serif, lora, baskerville, sans, accessible, mono }
 
 class AppTheme {
   static ThemeData get lightTheme {
@@ -158,8 +158,14 @@ class AppTheme {
     switch (fontFamily) {
       case ReaderFontFamily.serif:
         return GoogleFonts.merriweather(textStyle: base);
+      case ReaderFontFamily.lora:
+        return GoogleFonts.lora(textStyle: base);
+      case ReaderFontFamily.baskerville:
+        return GoogleFonts.libreBaskerville(textStyle: base);
       case ReaderFontFamily.sans:
-        return GoogleFonts.inter(textStyle: base);
+        return GoogleFonts.sourceSans3(textStyle: base);
+      case ReaderFontFamily.accessible:
+        return GoogleFonts.atkinsonHyperlegible(textStyle: base);
       case ReaderFontFamily.mono:
         return GoogleFonts.jetBrainsMono(textStyle: base);
     }
