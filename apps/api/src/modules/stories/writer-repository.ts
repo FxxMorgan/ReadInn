@@ -22,19 +22,19 @@ export class WriterRepository {
         .filter((story) => includeArchived || story.status !== 'archived');
     }
     const stories = await prisma.story.findMany({ where: includeArchived ? {} : { status: { not: 'archived' } }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, _count: { select: { chapters: true } } } });
-    return stories.map((story) => ({ id: story.id, title: story.title, author: story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
+    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
   }
 
   async getUserStories(authorId: string, includeArchived = false): Promise<StorySummary[]> {
     if (!(await checkDatabaseConnection())) return (offlineStoriesByAuthor.get(authorId) ?? []).filter((story) => includeArchived || story.status !== 'archived');
     const stories = await prisma.story.findMany({ where: { authorId, ...(includeArchived ? {} : { status: { not: 'archived' } }) }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, _count: { select: { chapters: true } } } });
-    return stories.map((story) => ({ id: story.id, title: story.title, author: story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
+    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
   }
 
   async getUserStory(authorId: string, storyId: string) {
     if (!(await checkDatabaseConnection())) { const summary=(offlineStoriesByAuthor.get(authorId)??[]).find((story)=>story.id===storyId); if(!summary)return null; return {...summary,chapters:chapterFixtures.filter((chapter)=>chapter.storyId===storyId).map((chapter)=>({...chapter,status:offlineChapterMeta.get(chapter.id)?.status??'draft'}))}; }
     const story=await prisma.story.findFirst({where:{id:storyId,authorId},include:{author:{include:{profile:true}},genres:{include:{genre:true}},chapters:{where:{status:{not:'archived'}},orderBy:{position:'asc'},select:{id:true,storyId:true,position:true,title:true,status:true,wordCount:true,updatedAt:true}}}});if(!story)return null;
-    return {id:story.id,title:story.title,author:story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??'General',status:story.status,chapterCount:story.chapters.length,isMature:story.isMature,coverColor:story.coverUrl??'#855300',chapters:story.chapters.map((chapter)=>({...chapter,updatedAt:chapter.updatedAt.toISOString()}))};
+    return {id:story.id,title:story.title,author:story.attributionName??story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??'General',status:story.status,chapterCount:story.chapters.length,isMature:story.isMature,coverColor:story.coverUrl??'#855300',chapters:story.chapters.map((chapter)=>({...chapter,updatedAt:chapter.updatedAt.toISOString()}))};
   }
 
   async createStory(params: CreateStoryParams): Promise<StorySummary> {

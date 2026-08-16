@@ -19,6 +19,8 @@ export interface ChapterSummary {
   status?: ChapterStatus;
   wordCount?: number;
   updatedAt?: string;
+  sourceUrl?: string;
+  sourceLicense?: string;
 }
 
 export interface StorySummary {

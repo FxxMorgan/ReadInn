@@ -6,6 +6,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config/env.js';
 import { accessToken } from './shared/auth.js';
 import { s3MediaService } from './modules/media/s3-storage.js';
+import { bulkImportSchema } from './modules/stories/bulk-import-routes.js';
 
 vi.mock('./shared/db.js', async (importOriginal) => {
   const original = await importOriginal<typeof import('./shared/db.js')>();
@@ -52,6 +53,35 @@ describe('ReadInn API', () => {
       isAdmin: false,
     });
     await app.close();
+  });
+
+  it('requires authentication for bulk story imports', async () => {
+    const app = await buildApp(config);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/admin/stories/bulk-import',
+      payload: { stories: [] },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
+    await app.close();
+  });
+
+  it('rejects duplicate import keys inside a bulk request', () => {
+    const story = {
+      importKey: 'gutenberg:1342',
+      title: 'Pride and Prejudice',
+      authorName: 'Jane Austen',
+      synopsis: 'A public-domain novel imported from a documented source.',
+      genre: 'Clasicos',
+      sourceUrl: 'https://www.gutenberg.org/ebooks/1342',
+      license: 'Public Domain',
+      languageCode: 'en',
+      chapters: [{ title: 'Chapter 1', content: 'It is a truth universally acknowledged.' }],
+    };
+
+    expect(() => bulkImportSchema.parse({ stories: [story, story] })).toThrow();
   });
 
   it('uploads media through the API before confirming it', async () => {

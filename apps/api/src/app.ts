@@ -15,6 +15,7 @@ import { registerMediaRoutes } from './modules/media/routes.js';
 import { checkDatabaseConnection } from './shared/db.js';
 import { contentCache } from './shared/content-cache.js';
 import { registerSocialRoutes } from './modules/social/routes.js';
+import { registerBulkImportRoutes } from './modules/stories/bulk-import-routes.js';
 
 export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   contentCache.configure({
@@ -61,6 +62,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   registerModerationRoutes(app);
   registerMediaRoutes(app);
   registerSocialRoutes(app);
+  registerBulkImportRoutes(app);
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {

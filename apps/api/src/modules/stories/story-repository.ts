@@ -63,6 +63,7 @@ export class StoryRepository {
       where.OR = [
         { title: { contains: query, mode: 'insensitive' } },
         { synopsis: { contains: query, mode: 'insensitive' } },
+        { attributionName: { contains: query, mode: 'insensitive' } },
         { author: { profile: { displayName: { contains: query, mode: 'insensitive' } } } },
       ];
     }
@@ -115,7 +116,7 @@ export class StoryRepository {
 
     const data: StorySummary[] = stories.map((story) => {
       const primaryGenre = story.genres[0]?.genre.name ?? 'General';
-      const authorName = story.author.profile?.displayName ?? story.author.username;
+      const authorName = story.attributionName ?? story.author.profile?.displayName ?? story.author.username;
       const rating = ratingsByStory.get(story.id);
       
       return {
@@ -131,6 +132,8 @@ export class StoryRepository {
         coverColor: story.coverUrl ?? '#855300',
         averageRating: rating?.averageRating ?? 0,
         ratingCount: rating?.ratingCount ?? 0,
+        ...(story.sourceUrl ? { sourceUrl: story.sourceUrl } : {}),
+        ...(story.sourceLicense ? { sourceLicense: story.sourceLicense } : {}),
       };
     });
 
@@ -223,7 +226,7 @@ export class StoryRepository {
     if (!story) return null;
 
     const primaryGenre = story.genres[0]?.genre.name ?? 'General';
-    const authorName = story.author.profile?.displayName ?? story.author.username;
+    const authorName = story.attributionName ?? story.author.profile?.displayName ?? story.author.username;
 
     return {
       id: story.id,
@@ -236,6 +239,8 @@ export class StoryRepository {
       chapterCount: story.chapters.length,
       isMature: story.isMature,
       coverColor: story.coverUrl ?? '#855300',
+      ...(story.sourceUrl ? { sourceUrl: story.sourceUrl } : {}),
+      ...(story.sourceLicense ? { sourceLicense: story.sourceLicense } : {}),
       chapters: story.chapters,
     };
   }

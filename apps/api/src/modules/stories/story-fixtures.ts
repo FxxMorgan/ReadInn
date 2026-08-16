@@ -13,6 +13,8 @@ export type StorySummary = {
   coverColor: string;
   averageRating?: number;
   ratingCount?: number;
+  sourceUrl?: string;
+  sourceLicense?: string;
 };
 
 export type Chapter = {

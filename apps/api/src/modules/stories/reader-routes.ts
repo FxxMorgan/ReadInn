@@ -548,7 +548,7 @@ export function registerReaderRoutes(app: FastifyInstance): void {
     const data = stories.map((story) => ({
       id: story.id,
       title: story.title,
-      author: story.author.profile?.displayName ?? story.author.username,
+      author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username,
       authorUsername: story.author.username,
       synopsis: story.synopsis,
       genre: story.genres[0]?.genre.name ?? 'General',

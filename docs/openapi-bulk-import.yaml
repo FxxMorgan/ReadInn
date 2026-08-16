@@ -1,0 +1,186 @@
+openapi: 3.1.0
+info:
+  title: ReadInn Bulk Import API
+  version: 1.0.0
+  description: Importacion administrativa e idempotente de obras con procedencia verificable.
+servers:
+  - url: https://api.cypher.cl
+paths:
+  /v1/admin/stories/bulk-import:
+    post:
+      summary: Importar obras completas en lote
+      operationId: bulkImportStories
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkImportRequest'
+      responses:
+        '200':
+          description: Lote procesado de forma transaccional.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '413':
+          description: El cuerpo de la solicitud supera 10 MB.
+        '503':
+          description: PostgreSQL no esta disponible.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    BulkImportRequest:
+      type: object
+      additionalProperties: false
+      required: [stories]
+      properties:
+        conflictMode:
+          type: string
+          enum: [skip, replace]
+          default: skip
+        stories:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/ImportedStory'
+    ImportedStory:
+      type: object
+      additionalProperties: false
+      required: [importKey, title, authorName, synopsis, genre, sourceUrl, license, languageCode, chapters]
+      properties:
+        importKey:
+          type: string
+          minLength: 3
+          maxLength: 200
+          pattern: '^[a-zA-Z0-9][a-zA-Z0-9:._/-]+$'
+          examples: [gutenberg:1342]
+        title:
+          type: string
+          minLength: 2
+          maxLength: 150
+        authorName:
+          type: string
+          minLength: 2
+          maxLength: 150
+        synopsis:
+          type: string
+          minLength: 10
+          maxLength: 3000
+        genre:
+          type: string
+          minLength: 2
+          maxLength: 80
+        sourceUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+        license:
+          type: string
+          minLength: 2
+          maxLength: 120
+        languageCode:
+          type: string
+          pattern: '^[a-z]{2,3}(-[A-Z]{2})?$'
+          examples: [es, en, pt-BR]
+        coverUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+        isMature:
+          type: boolean
+          default: false
+        status:
+          type: string
+          enum: [draft, published]
+          default: draft
+        chapters:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/ImportedChapter'
+    ImportedChapter:
+      type: object
+      additionalProperties: false
+      required: [title, content]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 150
+        content:
+          oneOf:
+            - type: string
+              minLength: 1
+              maxLength: 1000000
+            - type: array
+              minItems: 1
+              maxItems: 5000
+              items:
+                type: string
+                maxLength: 100000
+        status:
+          type: string
+          enum: [draft, published]
+          default: published
+    BulkImportResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [created, replaced, skipped, items]
+          properties:
+            created: { type: integer, minimum: 0 }
+            replaced: { type: integer, minimum: 0 }
+            skipped: { type: integer, minimum: 0 }
+            items:
+              type: array
+              items:
+                type: object
+                required: [importKey, storyId, status, chapterCount]
+                properties:
+                  importKey: { type: string }
+                  storyId: { type: string, format: uuid }
+                  status: { type: string, enum: [created, replaced, skipped] }
+                  chapterCount: { type: integer, minimum: 0 }
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string }
+            details: { type: array, items: {} }
+  responses:
+    Unauthorized:
+      description: Token ausente o sesion invalida.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: La cuenta no es administradora.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: El lote no cumple el contrato.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
