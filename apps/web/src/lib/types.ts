@@ -59,10 +59,17 @@ export interface ChapterComment {
   chapterId: string;
   authorName: string;
   authorUsername?: string;
+  authorAvatarUrl?: string | null;
   body: string;
   createdAt: string;
   likes: number;
+  upvotes: number;
+  downvotes: number;
+  score: number;
+  currentVote: -1 | 0 | 1;
+  isHidden: boolean;
   paragraphIndex?: number;
+  parentCommentId?: string;
 }
 
 export interface WallPost {

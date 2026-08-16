@@ -26,6 +26,14 @@ function authUserId(authorization?: unknown): string | null {
   return bearerClaims(authorization)?.userId ?? null;
 }
 
+function normalizeUsername(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function usernameFilter(username: string) {
+  return { equals: username, mode: 'insensitive' as const };
+}
+
 function fixtureBio(username: string): string {
   if (username === 'marina-solis') {
     return 'Cartografa e investigadora de leyendas maritimas. Escribo historias donde el mar oculta secretos viejos.';
@@ -80,7 +88,7 @@ function mapStory(story: {
 
 export function registerSocialRoutes(app: FastifyInstance): void {
   app.get<{ Params: { username: string } }>('/v1/users/:username', async (request, reply) => {
-    const username = request.params.username.toLowerCase();
+    const username = normalizeUsername(request.params.username);
     const requesterId = authUserId(request.headers.authorization);
 
     if (!(await checkDatabaseConnection())) {
@@ -94,7 +102,7 @@ export function registerSocialRoutes(app: FastifyInstance): void {
     }
 
     const user = await prisma.user.findFirst({
-      where: { username, accountStatus: 'active', deletedAt: null },
+      where: { username: usernameFilter(username), accountStatus: 'active', deletedAt: null },
       include: {
         profile: true,
         stories: {
@@ -143,7 +151,7 @@ export function registerSocialRoutes(app: FastifyInstance): void {
         error: { code: 'AUTH_REQUIRED', message: 'Inicia sesion para seguir usuarios.' },
       });
     }
-    const username = request.params.username.toLowerCase();
+    const username = normalizeUsername(request.params.username);
 
     if (!(await checkDatabaseConnection())) {
       const profile = fixtureProfile(username, followerId);
@@ -164,7 +172,10 @@ export function registerSocialRoutes(app: FastifyInstance): void {
       };
     }
 
-    const target = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+    const target = await prisma.user.findFirst({
+      where: { username: usernameFilter(username) },
+      select: { id: true },
+    });
     if (!target) {
       return reply.status(404).send({
         error: { code: 'USER_NOT_FOUND', message: 'No se encontro el usuario.' },
@@ -197,7 +208,7 @@ export function registerSocialRoutes(app: FastifyInstance): void {
   });
 
   app.get<{ Params: { username: string } }>('/v1/users/:username/wall', async (request, reply) => {
-    const username = request.params.username.toLowerCase();
+    const username = normalizeUsername(request.params.username);
     if (!(await checkDatabaseConnection())) {
       if (!fixtureProfile(username, null)) {
         return reply.status(404).send({
@@ -211,7 +222,10 @@ export function registerSocialRoutes(app: FastifyInstance): void {
       };
     }
 
-    const profileUser = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+    const profileUser = await prisma.user.findFirst({
+      where: { username: usernameFilter(username) },
+      select: { id: true },
+    });
     if (!profileUser) {
       return reply.status(404).send({
         error: { code: 'USER_NOT_FOUND', message: 'No se encontro el usuario.' },
@@ -243,7 +257,7 @@ export function registerSocialRoutes(app: FastifyInstance): void {
       });
     }
     const body = wallPostSchema.parse(request.body);
-    const username = request.params.username.toLowerCase();
+    const username = normalizeUsername(request.params.username);
 
     if (!(await checkDatabaseConnection())) {
       if (!fixtureProfile(username, authorId)) {
@@ -266,7 +280,10 @@ export function registerSocialRoutes(app: FastifyInstance): void {
     }
 
     const [profileUser, author] = await Promise.all([
-      prisma.user.findUnique({ where: { username }, select: { id: true } }),
+      prisma.user.findFirst({
+        where: { username: usernameFilter(username) },
+        select: { id: true },
+      }),
       prisma.user.findUnique({
         where: { id: authorId },
         include: { profile: true },

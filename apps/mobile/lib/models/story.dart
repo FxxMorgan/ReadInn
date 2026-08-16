@@ -150,10 +150,17 @@ class ChapterComment {
   final String chapterId;
   final String authorName;
   final String? authorUsername;
+  final String? authorAvatarUrl;
   final String body;
   final DateTime createdAt;
   final int likes;
+  final int upvotes;
+  final int downvotes;
+  final int score;
+  final int currentVote;
+  final bool isHidden;
   final int? paragraphIndex;
+  final String? parentCommentId;
 
   const ChapterComment({
     required this.id,
@@ -161,11 +168,19 @@ class ChapterComment {
     required this.chapterId,
     required this.authorName,
     this.authorUsername,
+    this.authorAvatarUrl,
     required this.body,
     required this.createdAt,
     required this.likes,
+    int? upvotes,
+    this.downvotes = 0,
+    int? score,
+    this.currentVote = 0,
+    this.isHidden = false,
     this.paragraphIndex,
-  });
+    this.parentCommentId,
+  }) : upvotes = upvotes ?? likes,
+       score = score ?? (upvotes ?? likes) - downvotes;
 
   factory ChapterComment.fromJson(Map<String, dynamic> json) => ChapterComment(
     id: json['id'] as String? ?? '',
@@ -173,11 +188,18 @@ class ChapterComment {
     chapterId: json['chapterId'] as String? ?? '',
     authorName: json['authorName'] as String? ?? 'Invitado',
     authorUsername: json['authorUsername'] as String?,
+    authorAvatarUrl: json['authorAvatarUrl'] as String?,
     body: json['body'] as String? ?? '',
     createdAt:
         DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
     likes: (json['likes'] as num?)?.toInt() ?? 0,
+    upvotes: (json['upvotes'] as num?)?.toInt(),
+    downvotes: (json['downvotes'] as num?)?.toInt() ?? 0,
+    score: (json['score'] as num?)?.toInt(),
+    currentVote: (json['currentVote'] as num?)?.toInt() ?? 0,
+    isHidden: json['isHidden'] as bool? ?? false,
     paragraphIndex: (json['paragraphIndex'] as num?)?.toInt(),
+    parentCommentId: json['parentCommentId'] as String?,
   );
 }
 

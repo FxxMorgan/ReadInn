@@ -2,16 +2,51 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { BookOpen, Download, Library } from 'lucide-react';
+import { BookDown, BookOpen, Download, Library } from 'lucide-react';
 import { apiFetch, apiUrl } from '@/lib/api';
+import { getOfflineItem, hasOfflineItem, putOfflineItem } from '@/lib/offline-library';
 import type { StoryDetail } from '@/lib/types';
 
 export default function StoryPage({ params }: { params: { storyId: string } }) {
   const [story, setStory] = useState<StoryDetail | null>(null);
   const [error, setError] = useState('');
+  const [offlineSaving, setOfflineSaving] = useState(false);
+  const [offlineSaved, setOfflineSaved] = useState(false);
+  const storyCacheKey = `readinn-offline-story:${params.storyId}`;
   useEffect(() => {
-    void apiFetch<StoryDetail>(`/v1/stories/${params.storyId}`).then(setStory).catch((reason) => setError(reason.message));
+    void hasOfflineItem(storyCacheKey).then(setOfflineSaved);
+    void apiFetch<StoryDetail>(`/v1/stories/${params.storyId}`)
+      .then(setStory)
+      .catch((reason) => {
+        void getOfflineItem<StoryDetail>(storyCacheKey).then((cached) => {
+          if (cached) setStory(cached);
+          else setError(reason.message);
+        });
+      });
   }, [params.storyId]);
+
+  async function saveOffline() {
+    if (!story || offlineSaving) return;
+    setOfflineSaving(true);
+    setError('');
+    try {
+      const chapterPages = await Promise.all(story.chapters.map(async (chapter) => {
+        const detail = await apiFetch(`/v1/stories/${story.id}/chapters/${chapter.id}`);
+        await putOfflineItem(`readinn-offline-chapter:${story.id}:${chapter.id}`, detail);
+        return `/stories/${story.id}/chapters/${chapter.id}`;
+      }));
+      await putOfflineItem(storyCacheKey, story);
+      if ('caches' in window) {
+        const cache = await caches.open('readinn-offline-v1');
+        await Promise.allSettled([`/stories/${story.id}`, ...chapterPages].map((path) => cache.add(path)));
+      }
+      setOfflineSaved(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No pudimos guardar la obra sin conexion.');
+    } finally {
+      setOfflineSaving(false);
+    }
+  }
 
   if (error) return <div className="page"><div className="error-state">{error}</div></div>;
   if (!story) return <div className="page"><div className="empty-state">Cargando obra...</div></div>;
@@ -35,6 +70,16 @@ export default function StoryPage({ params }: { params: { storyId: string } }) {
           <button className="secondary-button" onClick={() => void apiFetch(`/v1/library/${story.id}`, { method: 'POST' })}>
             <Library size={18} />Guardar
           </button>
+          <button className="secondary-button" disabled={offlineSaving} onClick={() => void saveOffline()}>
+            <BookDown size={18} />{offlineSaving ? 'Guardando...' : offlineSaved ? 'Disponible sin conexion' : 'Guardar sin conexion'}
+          </button>
+          <details className="story-export-menu">
+            <summary className="secondary-button"><Download size={18} />Exportar</summary>
+            <div>
+              <a href={apiUrl(`/v1/stories/${story.id}/download?format=epub`)}>EPUB</a>
+              <a href={apiUrl(`/v1/stories/${story.id}/download?format=pdf`)}>PDF</a>
+            </div>
+          </details>
         </div>
         <div className="chapter-list">
           <h2>Capitulos</h2>

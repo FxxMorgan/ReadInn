@@ -259,7 +259,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           final allComments =
               commentsAsync.valueOrNull ?? const <ChapterComment>[];
           final generalComments = allComments
-              .where((comment) => comment.paragraphIndex == null)
+              .where(
+                (comment) =>
+                    comment.paragraphIndex == null &&
+                    comment.parentCommentId == null,
+              )
               .toList();
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 28, 20, 42),
@@ -480,6 +484,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                                   .map(
                                     (comment) => _Comment(
                                       comment: comment,
+                                      comments: allComments,
+                                      storyId: storyId,
+                                      chapterId: chapterId,
                                       textColor: textColor,
                                       subtextColor: subtextColor,
                                     ),
@@ -554,7 +561,9 @@ class _InlineCommentsSheet extends ConsumerWidget {
                   data: (comments) {
                     final thread = comments
                         .where(
-                          (comment) => comment.paragraphIndex == paragraphIndex,
+                          (comment) =>
+                              comment.paragraphIndex == paragraphIndex &&
+                              comment.parentCommentId == null,
                         )
                         .toList();
                     if (thread.isEmpty) {
@@ -570,6 +579,9 @@ class _InlineCommentsSheet extends ConsumerWidget {
                           .map(
                             (comment) => _Comment(
                               comment: comment,
+                              comments: comments,
+                              storyId: storyId,
+                              chapterId: chapterId,
                               textColor: textColor,
                               subtextColor: subtextColor,
                             ),
@@ -694,68 +706,218 @@ class _CommentComposerState extends State<_CommentComposer> {
   );
 }
 
-class _Comment extends StatelessWidget {
+class _Comment extends ConsumerStatefulWidget {
   final ChapterComment comment;
+  final List<ChapterComment> comments;
+  final String storyId;
+  final String chapterId;
   final Color textColor;
   final Color subtextColor;
+  final int depth;
 
   const _Comment({
     required this.comment,
+    required this.comments,
+    required this.storyId,
+    required this.chapterId,
     required this.textColor,
     required this.subtextColor,
+    this.depth = 0,
   });
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 18),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        CircleAvatar(
-          radius: 17,
-          backgroundColor: ReadInnColors.softOrange,
-          child: Text(
-            comment.authorName.isEmpty
-                ? '?'
-                : comment.authorName.substring(0, 1).toUpperCase(),
-            style: TextStyle(color: textColor, fontWeight: FontWeight.w800),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
+  ConsumerState<_Comment> createState() => _CommentState();
+}
+
+class _CommentState extends ConsumerState<_Comment> {
+  bool _revealed = false;
+  bool _replying = false;
+  bool _voting = false;
+
+  Future<void> _vote(int value) async {
+    final auth = ref.read(authProvider);
+    if (auth.token == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inicia sesion para votar comentarios.')),
+      );
+      return;
+    }
+    if (_voting) return;
+    setState(() => _voting = true);
+    try {
+      final next = widget.comment.currentVote == value ? 0 : value;
+      await ref
+          .read(apiServiceProvider)
+          .voteComment(
+            storyId: widget.storyId,
+            chapterId: widget.chapterId,
+            commentId: widget.comment.id,
+            value: next,
+            token: auth.token!,
+          );
+      ref.invalidate(
+        chapterCommentsProvider((
+          storyId: widget.storyId,
+          chapterId: widget.chapterId,
+        )),
+      );
+    } finally {
+      if (mounted) setState(() => _voting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final comment = widget.comment;
+    final hidden = comment.isHidden && !_revealed;
+    final replies =
+        widget.comments
+            .where((candidate) => candidate.parentCommentId == comment.id)
+            .toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return Padding(
+      padding: EdgeInsets.only(left: widget.depth == 0 ? 0 : 16, bottom: 12),
+      child: Column(
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              InkWell(
-                onTap: comment.authorUsername == null
+              CircleAvatar(
+                radius: 17,
+                backgroundColor: ReadInnColors.softOrange,
+                backgroundImage: comment.authorAvatarUrl == null
                     ? null
-                    : () => context.push('/users/${comment.authorUsername}'),
-                child: Text(
-                  comment.authorName,
-                  style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.w700,
-                  ),
+                    : NetworkImage(comment.authorAvatarUrl!),
+                child: comment.authorAvatarUrl != null
+                    ? null
+                    : Text(
+                        comment.authorName.isEmpty
+                            ? '?'
+                            : comment.authorName.substring(0, 1).toUpperCase(),
+                        style: TextStyle(
+                          color: widget.textColor,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    InkWell(
+                      onTap: comment.authorUsername == null
+                          ? null
+                          : () => context.push(
+                              '/users/${comment.authorUsername}',
+                            ),
+                      child: Text(
+                        comment.authorName,
+                        style: TextStyle(
+                          color: widget.textColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hidden
+                          ? 'Comentario oculto por negatividad'
+                          : comment.body,
+                      style: TextStyle(
+                        color: hidden ? widget.subtextColor : widget.textColor,
+                        height: 1.45,
+                        fontStyle: hidden ? FontStyle.italic : FontStyle.normal,
+                      ),
+                    ),
+                    if (hidden)
+                      TextButton.icon(
+                        onPressed: () => setState(() => _revealed = true),
+                        icon: const Icon(Icons.visibility_outlined, size: 16),
+                        label: const Text('Mostrar de todas maneras'),
+                      ),
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Upvote',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: _voting ? null : () => _vote(1),
+                          color: comment.currentVote == 1
+                              ? ReadInnColors.primaryDeep
+                              : widget.subtextColor,
+                          icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                        ),
+                        Text(
+                          '${comment.score}',
+                          style: TextStyle(
+                            color: widget.subtextColor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Downvote',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: _voting ? null : () => _vote(-1),
+                          color: comment.currentVote == -1
+                              ? const Color(0xFFB42318)
+                              : widget.subtextColor,
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                        ),
+                        TextButton.icon(
+                          onPressed: () =>
+                              setState(() => _replying = !_replying),
+                          icon: const Icon(Icons.reply_rounded, size: 16),
+                          label: const Text('Responder'),
+                        ),
+                      ],
+                    ),
+                    if (_replying)
+                      _CommentComposer(
+                        textColor: widget.textColor,
+                        subtextColor: widget.subtextColor,
+                        hintText: 'Responder a ${comment.authorName}',
+                        onSubmit: (body) async {
+                          final auth = ref.read(authProvider);
+                          await ref
+                              .read(apiServiceProvider)
+                              .addComment(
+                                storyId: widget.storyId,
+                                chapterId: widget.chapterId,
+                                body: body,
+                                parentCommentId: comment.id,
+                                authorName:
+                                    auth.user?.displayName ?? 'Invitado',
+                                token: auth.token,
+                              );
+                          ref.invalidate(
+                            chapterCommentsProvider((
+                              storyId: widget.storyId,
+                              chapterId: widget.chapterId,
+                            )),
+                          );
+                          if (mounted) setState(() => _replying = false);
+                        },
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                comment.body,
-                style: TextStyle(color: textColor, height: 1.45),
-              ),
-              if (comment.likes > 0) ...[
-                const SizedBox(height: 5),
-                Text(
-                  '${comment.likes} me gusta',
-                  style: TextStyle(color: subtextColor, fontSize: 11),
-                ),
-              ],
             ],
           ),
-        ),
-      ],
-    ),
-  );
+          ...replies.map(
+            (reply) => _Comment(
+              comment: reply,
+              comments: widget.comments,
+              storyId: widget.storyId,
+              chapterId: widget.chapterId,
+              textColor: widget.textColor,
+              subtextColor: widget.subtextColor,
+              depth: widget.depth + 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ReaderSettingsSheet extends ConsumerWidget {

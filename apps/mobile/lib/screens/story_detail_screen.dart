@@ -197,6 +197,87 @@ class StoryDetailScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final count = await ref
+                                    .read(apiServiceProvider)
+                                    .downloadStoryForOffline(story.id);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        '$count capitulos disponibles sin conexion.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.offline_pin_outlined),
+                              label: const Text('Sin conexion'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => showModalBottomSheet<void>(
+                                context: context,
+                                showDragHandle: true,
+                                builder: (sheetContext) => SafeArea(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      ListTile(
+                                        leading: const Icon(
+                                          Icons.menu_book_outlined,
+                                        ),
+                                        title: const Text('Descargar EPUB'),
+                                        onTap: () async {
+                                          Navigator.pop(sheetContext);
+                                          await launchUrl(
+                                            ref
+                                                .read(apiServiceProvider)
+                                                .storyDownloadUri(
+                                                  story.id,
+                                                  'epub',
+                                                ),
+                                            mode:
+                                                LaunchMode.externalApplication,
+                                          );
+                                        },
+                                      ),
+                                      ListTile(
+                                        leading: const Icon(
+                                          Icons.picture_as_pdf_outlined,
+                                        ),
+                                        title: const Text('Descargar PDF'),
+                                        onTap: () async {
+                                          Navigator.pop(sheetContext);
+                                          await launchUrl(
+                                            ref
+                                                .read(apiServiceProvider)
+                                                .storyDownloadUri(
+                                                  story.id,
+                                                  'pdf',
+                                                ),
+                                            mode:
+                                                LaunchMode.externalApplication,
+                                          );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              icon: const Icon(Icons.download_outlined),
+                              label: const Text('Exportar'),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),

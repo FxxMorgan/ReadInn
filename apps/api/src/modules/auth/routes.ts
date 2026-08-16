@@ -7,7 +7,7 @@ import { accessToken, bearerClaims, refreshToken, verifyToken } from '../../shar
 
 const registerSchema = z.object({
   email: z.string().email(),
-  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/),
+  username: z.string().trim().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/),
   password: z.string().min(6),
   displayName: z.string().min(2).max(50).optional(),
 });
@@ -33,6 +33,7 @@ const resetPasswordSchema = z.object({
 const profileUpdateSchema = z.object({
   displayName: z.string().trim().min(2).max(50).optional(),
   bio: z.string().trim().max(500).optional(),
+  avatarUrl: z.string().url().nullable().optional(),
 });
 
 function bearerUserId(authorization?: string): string | null { return bearerClaims(authorization)?.userId ?? null; }
@@ -54,26 +55,31 @@ export function registerAuthRoutes(app: FastifyInstance): void {
   // Register
   app.post('/v1/auth/register', async (request, reply) => {
     const body = registerSchema.parse(request.body);
+    const username = body.username.toLowerCase();
+    const displayName = body.displayName ?? body.username;
     const isDbConnected = await checkDatabaseConnection();
     if (!isDbConnected) {
-      const token = accessToken(`user-${body.username}`, body.email);
+      const token = accessToken(`user-${username}`, body.email);
       return reply.status(201).send({
         data: {
           user: {
-            id: `user-${body.username}`,
+            id: `user-${username}`,
             email: body.email,
-            username: body.username,
-            displayName: body.displayName ?? body.username,
+            username,
+            displayName,
           },
           token,
-          refreshToken: refreshToken(`user-${body.username}`),
+          refreshToken: refreshToken(`user-${username}`),
         },
       });
     }
 
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [{ email: body.email }, { username: body.username }],
+        OR: [
+          { email: body.email },
+          { username: { equals: username, mode: 'insensitive' } },
+        ],
       },
     });
 
@@ -82,12 +88,11 @@ export function registerAuthRoutes(app: FastifyInstance): void {
     }
 
     const passwordHash = hashPassword(body.password);
-    const displayName = body.displayName ?? body.username;
 
     const user = await prisma.user.create({
       data: {
         email: body.email,
-        username: body.username,
+        username,
         passwordHash,
         accountStatus: 'active',
         profile: {
@@ -110,6 +115,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           email: user.email,
           username: user.username,
           displayName: user.profile?.displayName ?? user.username,
+          avatarUrl: user.profile?.avatarUrl ?? null,
         },
         token,
         refreshToken: nextRefreshToken,
@@ -157,6 +163,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           email: user.email,
           username: user.username,
           displayName: user.profile?.displayName ?? user.username,
+          avatarUrl: user.profile?.avatarUrl ?? null,
         },
         token,
         refreshToken: nextRefreshToken,
@@ -248,6 +255,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             username: user.username,
             displayName: user.profile?.displayName ?? user.username,
             bio: user.profile?.bio ?? '',
+            avatarUrl: user.profile?.avatarUrl ?? null,
           },
         };
       }
@@ -275,9 +283,10 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       });
     }
     if (await checkDatabaseConnection()) {
-      const update: { displayName?: string; bio?: string } = {};
+      const update: { displayName?: string; bio?: string; avatarUrl?: string | null } = {};
       if (body.displayName !== undefined) update.displayName = body.displayName;
       if (body.bio !== undefined) update.bio = body.bio;
+      if (body.avatarUrl !== undefined) update.avatarUrl = body.avatarUrl;
       const profile = await prisma.userProfile.upsert({
         where: { userId },
         update,
@@ -285,6 +294,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           userId,
           displayName: body.displayName ?? 'Usuario',
           bio: body.bio ?? '',
+          avatarUrl: body.avatarUrl ?? null,
           locale: 'es',
         },
       });
@@ -292,6 +302,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         data: {
           displayName: profile.displayName,
           bio: profile.bio ?? '',
+          avatarUrl: profile.avatarUrl ?? null,
         },
       };
     }
@@ -299,6 +310,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       data: {
         displayName: body.displayName ?? 'Usuario',
         bio: body.bio ?? '',
+        avatarUrl: body.avatarUrl ?? null,
       },
     };
   });

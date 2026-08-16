@@ -29,6 +29,26 @@ describe('ReadInn API', () => {
     await app.close();
   });
 
+  it('normalizes registered usernames while preserving the display name', async () => {
+    const app = await buildApp(config);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: {
+        email: 'feer-normalization@example.com',
+        username: 'Feer',
+        password: 'password-123',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json<{ data: { user: { username: string; displayName: string } } }>().data.user).toMatchObject({
+      username: 'feer',
+      displayName: 'Feer',
+    });
+    await app.close();
+  });
+
   it('uploads media through the API before confirming it', async () => {
     const uploadSpy = vi.spyOn(s3MediaService, 'uploadObject').mockResolvedValue();
     const app = await buildApp(config);
@@ -113,6 +133,26 @@ describe('ReadInn API', () => {
     await app.close();
   });
 
+  it('exports a published story as EPUB and PDF', async () => {
+    const app = await buildApp(config);
+    const epub = await app.inject({
+      method: 'GET',
+      url: '/v1/stories/story-lighthouse/download?format=epub',
+    });
+    const pdf = await app.inject({
+      method: 'GET',
+      url: '/v1/stories/story-lighthouse/download?format=pdf',
+    });
+
+    expect(epub.statusCode).toBe(200);
+    expect(epub.headers['content-type']).toContain('application/epub+zip');
+    expect(epub.rawPayload.subarray(0, 2).toString()).toBe('PK');
+    expect(pdf.statusCode).toBe(200);
+    expect(pdf.headers['content-type']).toContain('application/pdf');
+    expect(pdf.rawPayload.subarray(0, 4).toString()).toBe('%PDF');
+    await app.close();
+  });
+
   it('lists and creates chapter comments', async () => {
     const app = await buildApp(config);
     const createResponse = await app.inject({
@@ -131,6 +171,77 @@ describe('ReadInn API', () => {
     );
     expect(listResponse.statusCode).toBe(200);
     expect(listResponse.json<{ data: unknown[] }>().data.length).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it('supports replies, voting, and revealing comments hidden by negativity', async () => {
+    const app = await buildApp(config);
+    const create = await app.inject({
+      method: 'POST',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+      payload: { body: 'Este comentario iniciara un hilo.', authorName: 'Autor del hilo' },
+    });
+    const parent = create.json<{ data: { id: string } }>().data;
+    const reply = await app.inject({
+      method: 'POST',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+      payload: {
+        body: 'Esta es una respuesta directa.',
+        authorName: 'Respuesta',
+        parentCommentId: parent.id,
+      },
+    });
+    expect(reply.statusCode).toBe(201);
+    expect(reply.json<{ data: { parentCommentId: string } }>().data.parentCommentId).toBe(parent.id);
+
+    for (let index = 1; index <= 3; index += 1) {
+      const token = accessToken(`negative-reader-${index}`, `negative-${index}@example.com`);
+      const vote = await app.inject({
+        method: 'POST',
+        url: `/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments/${parent.id}/vote`,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { value: -1 },
+      });
+      expect(vote.statusCode).toBe(200);
+    }
+
+    const hidden = await app.inject({
+      method: 'GET',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+    });
+    const hiddenComment = hidden.json<{ data: Array<{ id: string; body: string; isHidden: boolean }> }>()
+      .data.find((comment) => comment.id === parent.id);
+    expect(hiddenComment).toMatchObject({
+      body: 'Comentario oculto por negatividad',
+      isHidden: true,
+    });
+
+    const revealed = await app.inject({
+      method: 'GET',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments?includeHidden=true',
+    });
+    const revealedComment = revealed.json<{ data: Array<{ id: string; body: string }> }>()
+      .data.find((comment) => comment.id === parent.id);
+    expect(revealedComment?.body).toBe('Este comentario iniciara un hilo.');
+    await app.close();
+  });
+
+  it('updates the avatar URL in the profile contract', async () => {
+    const app = await buildApp(config);
+    const token = accessToken('avatar-reader', 'avatar@example.com');
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/v1/auth/me',
+      headers: { authorization: `Bearer ${token}` },
+      payload: {
+        displayName: 'Avatar Reader',
+        bio: 'Perfil con imagen.',
+        avatarUrl: 'https://read.cypher.cl/avatars/avatar-reader.webp',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ data: { avatarUrl: string } }>().data.avatarUrl).toContain('/avatars/');
     await app.close();
   });
 

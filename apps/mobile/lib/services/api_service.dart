@@ -32,6 +32,10 @@ class ApiService {
   String _progressKey(String storyId, String? token) =>
       'reading_progress_${token ?? 'guest'}_$storyId';
 
+  String _offlineStoryKey(String storyId) => 'offline_story_$storyId';
+  String _offlineChapterKey(String storyId, String chapterId) =>
+      'offline_chapter_${storyId}_$chapterId';
+
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await _dio.post(
       '/v1/auth/login',
@@ -60,11 +64,14 @@ class ApiService {
 
   Future<List<ChapterComment>> fetchComments(
     String storyId,
-    String chapterId,
-  ) async {
+    String chapterId, {
+    String? token,
+  }) async {
     try {
       final response = await _dio.get(
         '/v1/stories/$storyId/chapters/$chapterId/comments',
+        queryParameters: const {'includeHidden': 'true'},
+        options: _authOptions(token),
       );
       final data = response.data['data'] as List<dynamic>? ?? [];
       return data
@@ -87,6 +94,7 @@ class ApiService {
     required String body,
     required String authorName,
     int? paragraphIndex,
+    String? parentCommentId,
     String? token,
   }) async {
     try {
@@ -96,6 +104,7 @@ class ApiService {
           'body': body,
           'authorName': authorName,
           'paragraphIndex': ?paragraphIndex,
+          'parentCommentId': ?parentCommentId,
         },
         options: _authOptions(token),
       );
@@ -116,10 +125,26 @@ class ApiService {
         createdAt: DateTime.now(),
         likes: 0,
         paragraphIndex: paragraphIndex,
+        parentCommentId: parentCommentId,
       );
       _comments.insert(0, comment);
       return comment;
     }
+  }
+
+  Future<Map<String, dynamic>> voteComment({
+    required String storyId,
+    required String chapterId,
+    required String commentId,
+    required int value,
+    required String token,
+  }) async {
+    final response = await _dio.post(
+      '/v1/stories/$storyId/chapters/$chapterId/comments/$commentId/vote',
+      data: {'value': value},
+      options: _authOptions(token),
+    );
+    return response.data['data'] as Map<String, dynamic>;
   }
 
   Future<bool> toggleStoryLike(String storyId, {String? token}) async {
@@ -369,11 +394,12 @@ class ApiService {
   Future<Map<String, dynamic>> updateProfile({
     required String displayName,
     required String bio,
+    String? avatarUrl,
     required String token,
   }) async {
     final response = await _dio.patch(
       '/v1/auth/me',
-      data: {'displayName': displayName, 'bio': bio},
+      data: {'displayName': displayName, 'bio': bio, 'avatarUrl': avatarUrl},
       options: _authOptions(token),
     );
     return response.data['data'] as Map<String, dynamic>;
@@ -382,6 +408,11 @@ class ApiService {
   Uri chapterDownloadUri(String storyId, String chapterId) {
     final base = _dio.options.baseUrl.replaceFirst(RegExp(r'/$'), '');
     return Uri.parse('$base/v1/stories/$storyId/chapters/$chapterId/download');
+  }
+
+  Uri storyDownloadUri(String storyId, String format) {
+    final base = _dio.options.baseUrl.replaceFirst(RegExp(r'/$'), '');
+    return Uri.parse('$base/v1/stories/$storyId/download?format=$format');
   }
 
   Future<PublicProfile> fetchPublicProfile(
@@ -784,11 +815,17 @@ class ApiService {
   Future<StoryDetail> fetchStoryDetail(String storyId) async {
     try {
       final response = await _dio.get('/v1/stories/$storyId');
-      return StoryDetail.fromJson(
-        response.data['data'] as Map<String, dynamic>,
-      );
+      final data = response.data['data'] as Map<String, dynamic>;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_offlineStoryKey(storyId), jsonEncode(data));
+      return StoryDetail.fromJson(data);
     } catch (error) {
       debugPrint('API unavailable, using story fallback: $error');
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_offlineStoryKey(storyId));
+      if (cached != null) {
+        return StoryDetail.fromJson(jsonDecode(cached) as Map<String, dynamic>);
+      }
       final story = _stories.firstWhere(
         (item) => item.id == storyId,
         orElse: () => _stories.first,
@@ -818,11 +855,22 @@ class ApiService {
       final response = await _dio.get(
         '/v1/stories/$storyId/chapters/$chapterId',
       );
-      return ChapterDetail.fromJson(
-        response.data['data'] as Map<String, dynamic>,
+      final data = response.data['data'] as Map<String, dynamic>;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _offlineChapterKey(storyId, chapterId),
+        jsonEncode(data),
       );
+      return ChapterDetail.fromJson(data);
     } catch (error) {
       debugPrint('API unavailable, using chapter fallback: $error');
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_offlineChapterKey(storyId, chapterId));
+      if (cached != null) {
+        return ChapterDetail.fromJson(
+          jsonDecode(cached) as Map<String, dynamic>,
+        );
+      }
       return _content[chapterId] ??
           ChapterDetail(
             id: chapterId,
@@ -835,5 +883,18 @@ class ApiService {
             ],
           );
     }
+  }
+
+  Future<int> downloadStoryForOffline(String storyId) async {
+    final story = await fetchStoryDetail(storyId);
+    for (final chapter in story.chapters) {
+      await fetchChapterDetail(story.id, chapter.id);
+    }
+    return story.chapters.length;
+  }
+
+  Future<bool> isStoryAvailableOffline(String storyId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey(_offlineStoryKey(storyId));
   }
 }

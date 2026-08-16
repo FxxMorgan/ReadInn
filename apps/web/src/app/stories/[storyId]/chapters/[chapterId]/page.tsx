@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, MessageCircle, Send, Settings2, X } from 'lucide-react';
+import { ArrowLeft, BookDown, ChevronDown, ChevronUp, Download, Eye, MessageCircle, Reply, Send, Settings2, X } from 'lucide-react';
 import { useAuth } from '@/components/auth-provider';
 import { apiFetch, apiUrl } from '@/lib/api';
+import { getOfflineItem, hasOfflineItem, putOfflineItem } from '@/lib/offline-library';
 import type { ChapterComment, ChapterDetail } from '@/lib/types';
 
 type ReaderTheme = 'light' | 'sepia' | 'dark';
@@ -42,13 +43,32 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
   const [font, setFont] = useState<ReaderFont>('literary');
   const [fontSize, setFontSize] = useState(20);
   const [theme, setTheme] = useState<ReaderTheme>('light');
+  const [showHiddenComments, setShowHiddenComments] = useState(false);
+  const [offlineSaved, setOfflineSaved] = useState(false);
 
-  async function loadComments() {
-    setComments(await apiFetch<ChapterComment[]>(`/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments`));
+  const chapterCacheKey = `readinn-offline-chapter:${params.storyId}:${params.chapterId}`;
+  const commentsCacheKey = `readinn-offline-comments:${params.storyId}:${params.chapterId}`;
+
+  async function loadComments(includeHidden = showHiddenComments) {
+    try {
+      const loaded = await apiFetch<ChapterComment[]>(
+        `/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments?includeHidden=${includeHidden}`,
+      );
+      setComments(loaded);
+      await putOfflineItem(commentsCacheKey, loaded);
+    } catch {
+      const cached = await getOfflineItem<ChapterComment[]>(commentsCacheKey);
+      if (cached) setComments(cached);
+    }
   }
 
   useEffect(() => {
-    void apiFetch<ChapterDetail>(`/v1/stories/${params.storyId}/chapters/${params.chapterId}`).then(setChapter);
+    void hasOfflineItem(chapterCacheKey).then(setOfflineSaved);
+    void apiFetch<ChapterDetail>(`/v1/stories/${params.storyId}/chapters/${params.chapterId}`)
+      .then(setChapter)
+      .catch(() => {
+        void getOfflineItem<ChapterDetail>(chapterCacheKey).then((cached) => { if (cached) setChapter(cached); });
+      });
     void loadComments();
   }, [params.chapterId, params.storyId]);
 
@@ -74,14 +94,37 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
   const copy = useMemo(() => paragraphs(chapter?.content), [chapter?.content]);
   const colors = themeOptions[theme];
   const fontFamily = fontOptions.find((option) => option.id === font)?.family ?? fontOptions[0]!.family;
-  const generalComments = comments.filter((comment) => comment.paragraphIndex === undefined);
+  const generalComments = comments.filter((comment) => comment.paragraphIndex === undefined && !comment.parentCommentId);
 
-  async function submitComment(body: string, paragraphIndex?: number) {
+  async function submitComment(body: string, paragraphIndex?: number, parentCommentId?: string) {
     await apiFetch(`/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ body, authorName: user?.displayName ?? 'Invitado', paragraphIndex }),
+      body: JSON.stringify({ body, authorName: user?.displayName ?? 'Invitado', paragraphIndex, parentCommentId }),
     });
     await loadComments();
+  }
+
+  async function voteComment(comment: ChapterComment, value: -1 | 1) {
+    const nextValue = comment.currentVote === value ? 0 : value;
+    await apiFetch(`/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments/${comment.id}/vote`, {
+      method: 'POST',
+      body: JSON.stringify({ value: nextValue }),
+    });
+    await loadComments();
+  }
+
+  async function revealHiddenComments() {
+    setShowHiddenComments(true);
+    await loadComments(true);
+  }
+
+  async function saveForOffline() {
+    if (!chapter) return;
+    await Promise.all([
+      putOfflineItem(chapterCacheKey, chapter),
+      putOfflineItem(commentsCacheKey, comments),
+    ]);
+    setOfflineSaved(true);
   }
 
   if (!chapter) return <div className="reader-page">Cargando capitulo...</div>;
@@ -94,13 +137,14 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
             <ArrowLeft size={17} />{chapter.storyTitle}
           </Link>
           <div>
-            <a
-              className="reader-icon-button"
-              href={apiUrl(`/v1/stories/${params.storyId}/chapters/${params.chapterId}/download`)}
-              title="Descargar capitulo"
-            >
-              <Download size={19} /><span className="sr-only">Descargar capitulo</span>
-            </a>
+            <details className="reader-download-menu">
+              <summary className="reader-icon-button" title="Descargar o guardar"><Download size={19} /><span className="sr-only">Descargar o guardar</span></summary>
+              <div>
+                <a href={apiUrl(`/v1/stories/${params.storyId}/download?format=epub`)}>Descargar EPUB</a>
+                <a href={apiUrl(`/v1/stories/${params.storyId}/download?format=pdf`)}>Descargar PDF</a>
+                <button onClick={() => void saveForOffline()}><BookDown size={16} />{offlineSaved ? 'Guardado sin conexion' : 'Guardar sin conexion'}</button>
+              </div>
+            </details>
             <button className="reader-icon-button" title="Ajustes de lectura" onClick={() => setShowSettings((value) => !value)}>
               <Settings2 size={19} /><span className="sr-only">Ajustes de lectura</span>
             </button>
@@ -148,7 +192,7 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
         <h1 style={{ fontFamily }}>{chapter.title}</h1>
         <div className="reader-copy" style={{ fontFamily, fontSize, color: colors.text }}>
           {copy.map((paragraph, index) => {
-            const inlineComments = comments.filter((comment) => comment.paragraphIndex === index);
+            const inlineComments = comments.filter((comment) => comment.paragraphIndex === index && !comment.parentCommentId);
             return (
               <section className="reader-paragraph" key={index}>
                 <p>{paragraph}</p>
@@ -162,7 +206,19 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
                 </button>
                 {activeParagraph === index && (
                   <div className="inline-thread">
-                    {inlineComments.map((comment) => <CommentItem key={comment.id} comment={comment} muted={colors.muted} />)}
+                    {inlineComments.map((comment) => (
+                      <CommentItem
+                        key={comment.id}
+                        comment={comment}
+                        comments={comments}
+                        muted={colors.muted}
+                        canVote={Boolean(user)}
+                        revealed={showHiddenComments}
+                        onReply={(body, parentId) => submitComment(body, index, parentId)}
+                        onVote={voteComment}
+                        onReveal={revealHiddenComments}
+                      />
+                    ))}
                     <CommentComposer placeholder="Comentar este parrafo" onSubmit={(body) => submitComment(body, index)} />
                   </div>
                 )}
@@ -176,7 +232,19 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
           <CommentComposer placeholder="Comentar el capitulo" onSubmit={submitComment} />
           <div className="comment-list">
             {generalComments.length
-              ? generalComments.map((comment) => <CommentItem key={comment.id} comment={comment} muted={colors.muted} />)
+              ? generalComments.map((comment) => (
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  comments={comments}
+                  muted={colors.muted}
+                  canVote={Boolean(user)}
+                  revealed={showHiddenComments}
+                  onReply={(body, parentId) => submitComment(body, undefined, parentId)}
+                  onVote={voteComment}
+                  onReveal={revealHiddenComments}
+                />
+              ))
               : <p style={{ color: colors.muted }}>Todavia no hay comentarios.</p>}
           </div>
         </section>
@@ -208,14 +276,71 @@ function CommentComposer({ placeholder, onSubmit }: { placeholder: string; onSub
   );
 }
 
-function CommentItem({ comment, muted }: { comment: ChapterComment; muted: string }) {
+function CommentItem({
+  comment,
+  comments,
+  muted,
+  canVote,
+  revealed,
+  onReply,
+  onVote,
+  onReveal,
+  depth = 0,
+}: {
+  comment: ChapterComment;
+  comments: ChapterComment[];
+  muted: string;
+  canVote: boolean;
+  revealed: boolean;
+  onReply: (body: string, parentId: string) => Promise<void>;
+  onVote: (comment: ChapterComment, value: -1 | 1) => Promise<void>;
+  onReveal: () => Promise<void>;
+  depth?: number;
+}) {
+  const [replying, setReplying] = useState(false);
   const name = comment.authorUsername
     ? <Link href={`/users/${comment.authorUsername}`}>{comment.authorName}</Link>
     : comment.authorName;
+  const replies = comments
+    .filter((candidate) => candidate.parentCommentId === comment.id)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const hiddenBody = comment.isHidden && !revealed;
   return (
-    <article className="comment-item">
-      <div className="comment-avatar">{comment.authorName.slice(0, 1).toUpperCase()}</div>
-      <div><strong>{name}</strong><p>{comment.body}</p><time style={{ color: muted }}>{new Date(comment.createdAt).toLocaleString('es-CL')}</time></div>
-    </article>
+    <div className="comment-thread" style={{ marginLeft: depth ? Math.min(depth, 3) * 18 : 0 }}>
+      <article className={`comment-item${hiddenBody ? ' hidden-comment' : ''}`}>
+        <div className="comment-avatar">
+          {comment.authorAvatarUrl
+            ? <img src={comment.authorAvatarUrl} alt="" />
+            : comment.authorName.slice(0, 1).toUpperCase()}
+        </div>
+        <div className="comment-content">
+          <strong>{name}</strong>
+          <p>{comment.body}</p>
+          {hiddenBody && <button className="comment-reveal" onClick={() => void onReveal()}><Eye size={15} />Mostrar de todas maneras</button>}
+          <div className="comment-actions" style={{ color: muted }}>
+            <button disabled={!canVote} className={comment.currentVote === 1 ? 'active' : ''} title={canVote ? 'Upvote' : 'Inicia sesion para votar'} onClick={() => void onVote(comment, 1)}><ChevronUp size={17} /></button>
+            <span>{comment.score}</span>
+            <button disabled={!canVote} className={comment.currentVote === -1 ? 'active negative' : ''} title={canVote ? 'Downvote' : 'Inicia sesion para votar'} onClick={() => void onVote(comment, -1)}><ChevronDown size={17} /></button>
+            <button onClick={() => setReplying((value) => !value)}><Reply size={15} />Responder</button>
+            <time>{new Date(comment.createdAt).toLocaleString('es-CL')}</time>
+          </div>
+          {replying && <CommentComposer placeholder={`Responder a ${comment.authorName}`} onSubmit={async (body) => { await onReply(body, comment.id); setReplying(false); }} />}
+        </div>
+      </article>
+      {replies.map((reply) => (
+        <CommentItem
+          key={reply.id}
+          comment={reply}
+          comments={comments}
+          muted={muted}
+          canVote={canVote}
+          revealed={revealed}
+          onReply={onReply}
+          onVote={onVote}
+          onReveal={onReveal}
+          depth={depth + 1}
+        />
+      ))}
+    </div>
   );
 }

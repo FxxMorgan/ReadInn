@@ -11,6 +11,7 @@ class UserAccount {
   final String username;
   final String displayName;
   final String bio;
+  final String? avatarUrl;
 
   const UserAccount({
     required this.id,
@@ -18,6 +19,7 @@ class UserAccount {
     required this.username,
     required this.displayName,
     this.bio = '',
+    this.avatarUrl,
   });
 
   factory UserAccount.fromJson(Map<String, dynamic> json) => UserAccount(
@@ -29,6 +31,7 @@ class UserAccount {
         json['username'] as String? ??
         'Usuario',
     bio: json['bio'] as String? ?? '',
+    avatarUrl: json['avatarUrl'] as String?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -37,6 +40,7 @@ class UserAccount {
     'username': username,
     'displayName': displayName,
     'bio': bio,
+    'avatarUrl': avatarUrl,
   };
 }
 
@@ -160,6 +164,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<bool> updateProfile({
     required String displayName,
     required String bio,
+    String? avatarUrl,
   }) async {
     final current = state.user;
     final token = state.token;
@@ -168,6 +173,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final data = await _apiService.updateProfile(
         displayName: displayName,
         bio: bio,
+        avatarUrl: avatarUrl,
         token: token,
       );
       final updated = UserAccount(
@@ -176,6 +182,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         username: current.username,
         displayName: data['displayName'] as String? ?? displayName,
         bio: data['bio'] as String? ?? bio,
+        avatarUrl: data['avatarUrl'] as String? ?? avatarUrl,
       );
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_userKey, jsonEncode(updated.toJson()));

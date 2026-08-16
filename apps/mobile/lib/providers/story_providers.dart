@@ -38,9 +38,10 @@ final chapterDetailProvider =
 
 final chapterCommentsProvider =
     FutureProvider.family<List<ChapterComment>, ChapterParams>((ref, params) {
+      final token = ref.watch(authProvider.select((auth) => auth.token));
       return ref
           .watch(apiServiceProvider)
-          .fetchComments(params.storyId, params.chapterId);
+          .fetchComments(params.storyId, params.chapterId, token: token);
     });
 
 final libraryProvider = FutureProvider<List<StorySummary>>((ref) {

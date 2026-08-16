@@ -46,6 +46,7 @@ model User {
   stories            Story[]
   ratings            StoryRating[]
   chapterComments    ChapterComment[]
+  commentVotes       CommentVote[]
   wallPostsAuthored  WallPost[]     @relation("WallPostAuthor")
   wallPostsReceived  WallPost[]     @relation("WallPostProfile")
   following          UserFollow[]   @relation("Follower")
@@ -149,20 +150,40 @@ model ChapterComment {
   id             String   @id @default(uuid()) @db.Uuid
   storyId        String   @map("story_id") @db.Uuid
   chapterId      String   @map("chapter_id") @db.Uuid
+  parentId       String?  @map("parent_id") @db.Uuid
   authorId       String?  @map("author_id") @db.Uuid
   authorName     String   @map("author_name") @db.VarChar(80)
   body           String   @db.VarChar(1000)
   paragraphIndex Int?     @map("paragraph_index")
   likes          Int      @default(0)
+  downvotes      Int      @default(0)
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   story          Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
   chapter        Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent         ChapterComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies        ChapterComment[] @relation("CommentReplies")
   author         User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  votes          CommentVote[]
 
   @@index([chapterId, createdAt(sort: Desc)])
   @@index([storyId])
+  @@index([parentId])
   @@map("chapter_comments")
+}
+
+model CommentVote {
+  commentId String         @map("comment_id") @db.Uuid
+  userId    String         @map("user_id") @db.Uuid
+  value     Int
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  comment   ChapterComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, userId])
+  @@index([commentId, value])
+  @@map("comment_votes")
 }
 
 model UserFollow {

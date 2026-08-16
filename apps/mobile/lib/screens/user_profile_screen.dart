@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/auth_provider.dart';
@@ -52,41 +55,145 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     if (user == null) return;
     final name = TextEditingController(text: user.displayName);
     final bio = TextEditingController(text: user.bio);
+    Uint8List? avatarBytes;
+    String? avatarFilename;
+    String? avatarMimeType;
+    var removeAvatar = false;
     final save = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Editar perfil'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: name,
-              decoration: const InputDecoration(labelText: 'Nombre público'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Editar perfil'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 42,
+                  backgroundColor: ReadInnColors.softOrange,
+                  backgroundImage: avatarBytes != null
+                      ? MemoryImage(avatarBytes!)
+                      : (!removeAvatar && user.avatarUrl != null
+                            ? NetworkImage(user.avatarUrl!)
+                            : null),
+                  child:
+                      avatarBytes == null &&
+                          (removeAvatar || user.avatarUrl == null)
+                      ? Text(
+                          user.displayName.substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        final file = await ImagePicker().pickImage(
+                          source: ImageSource.gallery,
+                          maxWidth: 1600,
+                          imageQuality: 88,
+                        );
+                        if (file == null) return;
+                        final bytes = await file.readAsBytes();
+                        if (bytes.length > 5 * 1024 * 1024) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('La foto no puede superar 5 MB.'),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+                        final extension = file.name
+                            .split('.')
+                            .last
+                            .toLowerCase();
+                        final mimeType = switch (extension) {
+                          'png' => 'image/png',
+                          'webp' => 'image/webp',
+                          'gif' => 'image/gif',
+                          _ => 'image/jpeg',
+                        };
+                        setModalState(() {
+                          avatarBytes = bytes;
+                          avatarFilename = file.name;
+                          avatarMimeType = mimeType;
+                          removeAvatar = false;
+                        });
+                      },
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Elegir foto'),
+                    ),
+                    if (avatarBytes != null || user.avatarUrl != null)
+                      IconButton(
+                        tooltip: 'Quitar foto',
+                        onPressed: () => setModalState(() {
+                          avatarBytes = null;
+                          avatarFilename = null;
+                          avatarMimeType = null;
+                          removeAvatar = true;
+                        }),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                  ],
+                ),
+                TextField(
+                  controller: name,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre público',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: bio,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Biografía'),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: bio,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Biografía'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Guardar'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Guardar'),
-          ),
-        ],
       ),
     );
     if (save == true) {
+      var avatarUrl = removeAvatar ? null : user.avatarUrl;
+      if (avatarBytes != null &&
+          avatarFilename != null &&
+          avatarMimeType != null) {
+        avatarUrl = await ref
+            .read(apiServiceProvider)
+            .uploadMedia(
+              bytes: avatarBytes!,
+              filename: avatarFilename!,
+              mimeType: avatarMimeType!,
+              purpose: 'avatar',
+              token: ref.read(authProvider).token,
+            );
+      }
       final ok = await ref
           .read(authProvider.notifier)
-          .updateProfile(displayName: name.text.trim(), bio: bio.text.trim());
+          .updateProfile(
+            displayName: name.text.trim(),
+            bio: bio.text.trim(),
+            avatarUrl: avatarUrl,
+          );
       if (!ok && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No pudimos actualizar el perfil.')),
@@ -252,12 +359,17 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                         CircleAvatar(
                           radius: 35,
                           backgroundColor: ReadInnColors.softOrange,
+                          backgroundImage: user?.avatarUrl == null
+                              ? null
+                              : NetworkImage(user!.avatarUrl!),
                           child: user == null
                               ? const Icon(
                                   Icons.person_outline,
                                   size: 34,
                                   color: ReadInnColors.primaryDeep,
                                 )
+                              : user.avatarUrl != null
+                              ? null
                               : Text(
                                   initial,
                                   style: const TextStyle(

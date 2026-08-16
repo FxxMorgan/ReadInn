@@ -18,7 +18,20 @@ const commentSchema = z.object({
   body: z.string().trim().min(1).max(1000),
   authorName: z.string().trim().min(1).max(80).optional(),
   paragraphIndex: z.number().int().min(0).optional(),
+  parentCommentId: z.string().min(1).optional(),
 });
+
+const commentListQuerySchema = z.object({
+  includeHidden: z.enum(['true', 'false', '1', '0']).optional()
+    .transform((value) => value === 'true' || value === '1'),
+});
+
+const commentVoteSchema = z.object({
+  value: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
+});
+
+const NEGATIVE_COMMENT_THRESHOLD = 3;
+const HIDDEN_COMMENT_MESSAGE = 'Comentario oculto por negatividad';
 
 // In-memory fallback state is keyed by user so one account never sees another
 // account's library, progress, likes, or ratings when the database is offline.
@@ -35,7 +48,9 @@ type MockComment = {
   body: string;
   createdAt: string;
   likes: number;
+  downvotes: number;
   paragraphIndex?: number;
+  parentCommentId?: string;
 };
 
 const mockComments: MockComment[] = [
@@ -48,6 +63,7 @@ const mockComments: MockComment[] = [
     body: 'La imagen del faro apagado se queda contigo. Muy buen inicio.',
     createdAt: new Date().toISOString(),
     likes: 4,
+    downvotes: 0,
   },
   {
     id: 'comment-lighthouse-2',
@@ -58,10 +74,12 @@ const mockComments: MockComment[] = [
     body: 'El mapa dentro de la caja de fósforos es un detalle precioso.',
     createdAt: new Date().toISOString(),
     likes: 2,
+    downvotes: 0,
   },
 ];
 
 const mockLikes = new Set<string>();
+const mockCommentVotes = new Map<string, Map<string, -1 | 1>>();
 const mockRatings = new Map<string, Map<string, number>>();
 const mockFollowers = new Set<string>();
 const mockReads = new Map<string, number>([['story-lighthouse', 24580], ['story-quiet-city', 8210]]);
@@ -82,39 +100,71 @@ function libraryKey(userId: string, storyId: string): string {
   return `${userId}:${storyId}`;
 }
 
+function presentMockComment(comment: MockComment, userId: string | null, includeHidden: boolean) {
+  const currentVote = userId ? mockCommentVotes.get(comment.id)?.get(userId) ?? 0 : 0;
+  const isHidden = comment.downvotes >= NEGATIVE_COMMENT_THRESHOLD;
+  return {
+    ...comment,
+    body: isHidden && !includeHidden ? HIDDEN_COMMENT_MESSAGE : comment.body,
+    upvotes: comment.likes,
+    score: comment.likes - comment.downvotes,
+    currentVote,
+    isHidden,
+  };
+}
+
 export function registerReaderRoutes(app: FastifyInstance): void {
   // Chapter comments. These remain available when the database is offline and
   // use the same response shape as the persistent implementation will use.
-  app.get<{ Params: { storyId: string; chapterId: string } }>(
+  app.get<{
+    Params: { storyId: string; chapterId: string };
+    Querystring: { includeHidden?: string };
+  }>(
     '/v1/stories/:storyId/chapters/:chapterId/comments',
     async (request) => {
       const { storyId, chapterId } = request.params;
+      const query = commentListQuerySchema.parse(request.query);
+      const viewerId = authenticatedUserId(request);
       const isFixture = storyFixtures.some((story) => story.id === storyId);
       if (!isFixture && await checkDatabaseConnection()) {
         const comments = await prisma.chapterComment.findMany({
           where: { storyId, chapterId },
           orderBy: { createdAt: 'desc' },
-          include: { author: { include: { profile: true } } },
+          include: {
+            author: { include: { profile: true } },
+            votes: viewerId ? { where: { userId: viewerId }, select: { value: true } } : false,
+          },
         });
         return {
-          data: comments.map((comment) => ({
-            id: comment.id,
-            storyId: comment.storyId,
-            chapterId: comment.chapterId,
-            authorId: comment.authorId,
-            authorName: comment.authorName,
-            authorUsername: comment.author?.username,
-            body: comment.body,
-            createdAt: comment.createdAt.toISOString(),
-            likes: comment.likes,
-            ...(comment.paragraphIndex !== null ? { paragraphIndex: comment.paragraphIndex } : {}),
-          })),
+          data: comments.map((comment) => {
+            const isHidden = comment.downvotes >= NEGATIVE_COMMENT_THRESHOLD;
+            return {
+              id: comment.id,
+              storyId: comment.storyId,
+              chapterId: comment.chapterId,
+              authorId: comment.authorId,
+              authorName: comment.authorName,
+              authorUsername: comment.author?.username,
+              authorAvatarUrl: comment.author?.profile?.avatarUrl ?? null,
+              body: isHidden && !query.includeHidden ? HIDDEN_COMMENT_MESSAGE : comment.body,
+              createdAt: comment.createdAt.toISOString(),
+              likes: comment.likes,
+              upvotes: comment.likes,
+              downvotes: comment.downvotes,
+              score: comment.likes - comment.downvotes,
+              currentVote: comment.votes[0]?.value ?? 0,
+              isHidden,
+              ...(comment.parentId ? { parentCommentId: comment.parentId } : {}),
+              ...(comment.paragraphIndex !== null ? { paragraphIndex: comment.paragraphIndex } : {}),
+            };
+          }),
         };
       }
       return {
         data: mockComments
           .filter((comment) => comment.storyId === storyId && comment.chapterId === chapterId)
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+          .map((comment) => presentMockComment(comment, viewerId, query.includeHidden)),
       };
     }
   );
@@ -138,6 +188,25 @@ export function registerReaderRoutes(app: FastifyInstance): void {
             error: { code: 'CHAPTER_NOT_FOUND', message: 'No se encontro el capitulo.' },
           });
         }
+        const parent = body.parentCommentId
+          ? await prisma.chapterComment.findFirst({
+              where: {
+                id: body.parentCommentId,
+                storyId: request.params.storyId,
+                chapterId: request.params.chapterId,
+              },
+              select: { id: true, paragraphIndex: true },
+            })
+          : null;
+        if (body.parentCommentId && !parent) {
+          return reply.status(422).send({
+            error: {
+              code: 'INVALID_PARENT_COMMENT',
+              message: 'El comentario respondido no pertenece a este capitulo.',
+            },
+          });
+        }
+        const paragraphIndex = body.paragraphIndex ?? parent?.paragraphIndex ?? undefined;
         const userId = authenticatedUserId(request);
         const author = userId
           ? await prisma.user.findUnique({
@@ -150,9 +219,10 @@ export function registerReaderRoutes(app: FastifyInstance): void {
             storyId: request.params.storyId,
             chapterId: request.params.chapterId,
             ...(author ? { authorId: author.id } : {}),
+            ...(parent ? { parentId: parent.id } : {}),
             authorName: author?.profile?.displayName ?? body.authorName ?? 'Invitado',
             body: body.body,
-            ...(body.paragraphIndex !== undefined ? { paragraphIndex: body.paragraphIndex } : {}),
+            ...(paragraphIndex !== undefined ? { paragraphIndex } : {}),
           },
           include: { author: true },
         });
@@ -164,13 +234,35 @@ export function registerReaderRoutes(app: FastifyInstance): void {
             authorId: comment.authorId,
             authorName: comment.authorName,
             authorUsername: comment.author?.username,
+            authorAvatarUrl: author?.profile?.avatarUrl ?? null,
             body: comment.body,
             createdAt: comment.createdAt.toISOString(),
             likes: comment.likes,
+            upvotes: comment.likes,
+            downvotes: comment.downvotes,
+            score: comment.likes - comment.downvotes,
+            currentVote: 0,
+            isHidden: false,
+            ...(comment.parentId ? { parentCommentId: comment.parentId } : {}),
             ...(comment.paragraphIndex !== null ? { paragraphIndex: comment.paragraphIndex } : {}),
           },
         });
       }
+      const parent = body.parentCommentId
+        ? mockComments.find((comment) =>
+            comment.id === body.parentCommentId &&
+            comment.storyId === request.params.storyId &&
+            comment.chapterId === request.params.chapterId)
+        : undefined;
+      if (body.parentCommentId && !parent) {
+        return reply.status(422).send({
+          error: {
+            code: 'INVALID_PARENT_COMMENT',
+            message: 'El comentario respondido no pertenece a este capitulo.',
+          },
+        });
+      }
+      const paragraphIndex = body.paragraphIndex ?? parent?.paragraphIndex;
       const authorUsername = bearerClaims(request.headers.authorization)?.email?.split('@')[0];
       const comment: MockComment = {
         id: `comment-${crypto.randomUUID()}`,
@@ -182,13 +274,115 @@ export function registerReaderRoutes(app: FastifyInstance): void {
         body: body.body,
         createdAt: new Date().toISOString(),
         likes: 0,
-        ...(body.paragraphIndex !== undefined
-          ? { paragraphIndex: body.paragraphIndex }
-          : {}),
+        downvotes: 0,
+        ...(parent ? { parentCommentId: parent.id } : {}),
+        ...(paragraphIndex !== undefined ? { paragraphIndex } : {}),
       };
       mockComments.push(comment);
-      return reply.status(201).send({ data: comment });
+      return reply.status(201).send({ data: presentMockComment(comment, authenticatedUserId(request), false) });
     }
+  );
+
+  app.post<{ Params: { storyId: string; chapterId: string; commentId: string } }>(
+    '/v1/stories/:storyId/chapters/:chapterId/comments/:commentId/vote',
+    async (request, reply) => {
+      const userId = authenticatedUserId(request);
+      if (!userId) {
+        return reply.status(401).send({
+          error: { code: 'AUTH_REQUIRED', message: 'Inicia sesion para votar comentarios.' },
+        });
+      }
+      const body = commentVoteSchema.parse(request.body);
+      const isFixture = storyFixtures.some((story) => story.id === request.params.storyId);
+      if (!isFixture && await checkDatabaseConnection()) {
+        const userExists = await prisma.user.count({ where: { id: userId } }).catch(() => 0);
+        if (!userExists) {
+          return reply.status(401).send({
+            error: { code: 'AUTH_REQUIRED', message: 'La sesion ya no es valida.' },
+          });
+        }
+        const result = await prisma.$transaction(async (tx) => {
+          const comment = await tx.chapterComment.findFirst({
+            where: {
+              id: request.params.commentId,
+              storyId: request.params.storyId,
+              chapterId: request.params.chapterId,
+            },
+            select: { id: true },
+          });
+          if (!comment) return null;
+
+          const existing = await tx.commentVote.findUnique({
+            where: { commentId_userId: { commentId: comment.id, userId } },
+            select: { value: true },
+          });
+          const oldValue = existing?.value ?? 0;
+          const upvoteDelta = Number(body.value === 1) - Number(oldValue === 1);
+          const downvoteDelta = Number(body.value === -1) - Number(oldValue === -1);
+
+          if (body.value === 0) {
+            await tx.commentVote.deleteMany({ where: { commentId: comment.id, userId } });
+          } else {
+            await tx.commentVote.upsert({
+              where: { commentId_userId: { commentId: comment.id, userId } },
+              create: { commentId: comment.id, userId, value: body.value },
+              update: { value: body.value },
+            });
+          }
+
+          return tx.chapterComment.update({
+            where: { id: comment.id },
+            data: {
+              likes: { increment: upvoteDelta },
+              downvotes: { increment: downvoteDelta },
+            },
+            select: { likes: true, downvotes: true },
+          });
+        });
+        if (!result) {
+          return reply.status(404).send({
+            error: { code: 'COMMENT_NOT_FOUND', message: 'No se encontro el comentario.' },
+          });
+        }
+        return {
+          data: {
+            commentId: request.params.commentId,
+            upvotes: result.likes,
+            downvotes: result.downvotes,
+            score: result.likes - result.downvotes,
+            currentVote: body.value,
+            isHidden: result.downvotes >= NEGATIVE_COMMENT_THRESHOLD,
+          },
+        };
+      }
+
+      const comment = mockComments.find((item) =>
+        item.id === request.params.commentId &&
+        item.storyId === request.params.storyId &&
+        item.chapterId === request.params.chapterId);
+      if (!comment) {
+        return reply.status(404).send({
+          error: { code: 'COMMENT_NOT_FOUND', message: 'No se encontro el comentario.' },
+        });
+      }
+      const votes = mockCommentVotes.get(comment.id) ?? new Map<string, -1 | 1>();
+      const oldValue = votes.get(userId) ?? 0;
+      if (body.value === 0) votes.delete(userId);
+      else votes.set(userId, body.value);
+      mockCommentVotes.set(comment.id, votes);
+      comment.likes += Number(body.value === 1) - Number(oldValue === 1);
+      comment.downvotes += Number(body.value === -1) - Number(oldValue === -1);
+      return {
+        data: {
+          commentId: comment.id,
+          upvotes: comment.likes,
+          downvotes: comment.downvotes,
+          score: comment.likes - comment.downvotes,
+          currentVote: body.value,
+          isHidden: comment.downvotes >= NEGATIVE_COMMENT_THRESHOLD,
+        },
+      };
+    },
   );
 
   app.post<{ Params: { storyId: string } }>('/v1/stories/:storyId/like', async (request) => {
