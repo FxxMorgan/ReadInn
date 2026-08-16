@@ -125,6 +125,56 @@ class ManageStoryScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _deleteStory(
+    BuildContext context,
+    WidgetRef ref,
+    StoryDetail story,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar obra'),
+        content: Text(
+          'Se eliminara "${story.title}" de tus obras publicadas y borradores.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final token = ref.read(authProvider).token;
+    if (token == null) return;
+    try {
+      await ref.read(apiServiceProvider).deleteStory(story.id, token: token);
+      ref.invalidate(writerStoriesProvider);
+      ref.invalidate(storiesProvider);
+      ref.invalidate(dashboardMetricsProvider);
+      if (!context.mounted) return;
+      context.go('/writer/dashboard');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Obra eliminada.')));
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No pudimos eliminar la obra.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final story = ref.watch(writerStoryDetailProvider(storyId));
@@ -137,6 +187,12 @@ class ManageStoryScreen extends ConsumerWidget {
             onPressed: () => context.push('/story/$storyId'),
             icon: const Icon(Icons.visibility_outlined),
           ),
+          if (story.valueOrNull case final currentStory?)
+            IconButton(
+              tooltip: 'Eliminar obra',
+              onPressed: () => _deleteStory(context, ref, currentStory),
+              icon: const Icon(Icons.delete_outline),
+            ),
         ],
       ),
       body: story.when(

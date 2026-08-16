@@ -405,16 +405,6 @@ class ApiService {
     return response.data['data'] as Map<String, dynamic>;
   }
 
-  Uri chapterDownloadUri(String storyId, String chapterId) {
-    final base = _dio.options.baseUrl.replaceFirst(RegExp(r'/$'), '');
-    return Uri.parse('$base/v1/stories/$storyId/chapters/$chapterId/download');
-  }
-
-  Uri storyDownloadUri(String storyId, String format) {
-    final base = _dio.options.baseUrl.replaceFirst(RegExp(r'/$'), '');
-    return Uri.parse('$base/v1/stories/$storyId/download?format=$format');
-  }
-
   Future<PublicProfile> fetchPublicProfile(
     String username, {
     String? token,
@@ -549,6 +539,13 @@ class ApiService {
       data: const <String, dynamic>{},
       options: _authOptions(token),
     );
+  }
+
+  Future<void> deleteStory(String storyId, {required String token}) async {
+    await _dio.delete('/v1/me/stories/$storyId', options: _authOptions(token));
+    _localWriterStories[token]?.removeWhere((story) => story.id == storyId);
+    _stories.removeWhere((story) => story.id == storyId);
+    _chapters.remove(storyId);
   }
 
   Future<ChapterSummary> createChapter({
@@ -852,16 +849,7 @@ class ApiService {
     String chapterId,
   ) async {
     try {
-      final response = await _dio.get(
-        '/v1/stories/$storyId/chapters/$chapterId',
-      );
-      final data = response.data['data'] as Map<String, dynamic>;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        _offlineChapterKey(storyId, chapterId),
-        jsonEncode(data),
-      );
-      return ChapterDetail.fromJson(data);
+      return await downloadChapterForOffline(storyId, chapterId);
     } catch (error) {
       debugPrint('API unavailable, using chapter fallback: $error');
       final prefs = await SharedPreferences.getInstance();
@@ -885,10 +873,24 @@ class ApiService {
     }
   }
 
+  Future<ChapterDetail> downloadChapterForOffline(
+    String storyId,
+    String chapterId,
+  ) async {
+    final response = await _dio.get('/v1/stories/$storyId/chapters/$chapterId');
+    final data = response.data['data'] as Map<String, dynamic>;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _offlineChapterKey(storyId, chapterId),
+      jsonEncode(data),
+    );
+    return ChapterDetail.fromJson(data);
+  }
+
   Future<int> downloadStoryForOffline(String storyId) async {
     final story = await fetchStoryDetail(storyId);
     for (final chapter in story.chapters) {
-      await fetchChapterDetail(story.id, chapter.id);
+      await downloadChapterForOffline(story.id, chapter.id);
     }
     return story.chapters.length;
   }

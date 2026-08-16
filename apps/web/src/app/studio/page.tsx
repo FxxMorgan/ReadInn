@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { ArchiveRestore, BookOpen, FilePlus2, ImagePlus, PenLine, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '@/components/auth-provider';
+import { CoverCropDialog } from '@/components/cover-crop-dialog';
 import { apiFetch, apiUrl } from '@/lib/api';
 import type { StorySummary } from '@/lib/types';
 
@@ -14,6 +15,7 @@ export default function StudioPage() {
   const [filter, setFilter] = useState<'active' | 'archived'>('active');
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverCrop, setCoverCrop] = useState<{ source: string; filename: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const coverInput = useRef<HTMLInputElement>(null);
@@ -27,9 +29,11 @@ export default function StudioPage() {
   useEffect(() => () => { if (coverPreview) URL.revokeObjectURL(coverPreview); }, [coverPreview]);
 
   function closeCreate() {
+    if (coverCrop) URL.revokeObjectURL(coverCrop.source);
     setShowCreate(false);
     setCoverFile(null);
     setCoverPreview(null);
+    setCoverCrop(null);
     setCreateError('');
   }
 
@@ -44,6 +48,17 @@ export default function StudioPage() {
       return;
     }
     setCreateError('');
+    setCoverCrop({ source: URL.createObjectURL(file), filename: file.name });
+  }
+
+  function cancelCoverCrop() {
+    if (coverCrop) URL.revokeObjectURL(coverCrop.source);
+    setCoverCrop(null);
+  }
+
+  function applyCoverCrop(file: File) {
+    if (coverCrop) URL.revokeObjectURL(coverCrop.source);
+    setCoverCrop(null);
     setCoverFile(file);
     setCoverPreview(URL.createObjectURL(file));
   }
@@ -128,7 +143,7 @@ export default function StudioPage() {
               </button>
               <div className="cover-picker-copy">
                 <strong>Imagen de portada</strong>
-                <p>Elige una imagen vertical en JPG, PNG, WebP o GIF de hasta 5 MB.</p>
+                <p>Recorta una imagen al formato vertical 2:3, hasta 5 MB.</p>
                 <div>
                   <button type="button" className="secondary-button" onClick={() => coverInput.current?.click()}>{coverFile ? 'Cambiar imagen' : 'Elegir imagen'}</button>
                   {coverFile && <button type="button" className="icon-button danger" title="Quitar portada" onClick={() => { setCoverFile(null); setCoverPreview(null); }}><Trash2 size={17} /></button>}
@@ -141,6 +156,14 @@ export default function StudioPage() {
             <div className="modal-actions"><button type="button" className="secondary-button" disabled={creating} onClick={closeCreate}>Cancelar</button><button className="primary-button" disabled={creating}>{creating ? 'Creando...' : 'Crear borrador'}</button></div>
           </form>
         </div>
+      )}
+      {coverCrop && (
+        <CoverCropDialog
+          source={coverCrop.source}
+          filename={coverCrop.filename}
+          onCancel={cancelCoverCrop}
+          onApply={applyCoverCrop}
+        />
       )}
     </div>
   );

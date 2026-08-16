@@ -152,7 +152,7 @@ export function registerReaderRoutes(app: FastifyInstance): void {
               upvotes: comment.likes,
               downvotes: comment.downvotes,
               score: comment.likes - comment.downvotes,
-              currentVote: comment.votes[0]?.value ?? 0,
+              currentVote: viewerId ? comment.votes[0]?.value ?? 0 : 0,
               isHidden,
               ...(comment.parentId ? { parentCommentId: comment.parentId } : {}),
               ...(comment.paragraphIndex !== null ? { paragraphIndex: comment.paragraphIndex } : {}),

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
@@ -149,15 +148,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
     if (value == 'download') {
-      final launched = await launchUrl(
-        ref
+      try {
+        await ref
             .read(apiServiceProvider)
-            .chapterDownloadUri(widget.storyId, widget.chapterId),
-        mode: LaunchMode.externalApplication,
-      );
-      if (!launched && mounted) {
+            .downloadChapterForOffline(widget.storyId, widget.chapterId);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No pudimos iniciar la descarga.')),
+          const SnackBar(
+            content: Text('Capitulo disponible para lectura sin conexion.'),
+          ),
+        );
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No pudimos guardar el capitulo.')),
         );
       }
       return;
@@ -230,7 +234,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               PopupMenuItem(value: 'mark', child: Text('Marcar como leído')),
               PopupMenuItem(
                 value: 'download',
-                child: Text('Descargar capítulo'),
+                child: Text('Guardar sin conexion'),
               ),
               PopupMenuItem(value: 'share', child: Text('Compartir capítulo')),
             ],

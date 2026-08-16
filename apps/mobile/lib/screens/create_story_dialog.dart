@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
@@ -55,27 +56,6 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
     super.dispose();
   }
 
-  String? _mimeTypeFor(XFile file) {
-    final reported = file.mimeType;
-    if (reported != null &&
-        const {
-          'image/jpeg',
-          'image/png',
-          'image/webp',
-          'image/gif',
-        }.contains(reported)) {
-      return reported;
-    }
-    final extension = file.name.split('.').last.toLowerCase();
-    return switch (extension) {
-      'jpg' || 'jpeg' => 'image/jpeg',
-      'png' => 'image/png',
-      'webp' => 'image/webp',
-      'gif' => 'image/gif',
-      _ => null,
-    };
-  }
-
   Future<void> _pickCover() async {
     final picked = await _imagePicker.pickImage(
       source: ImageSource.gallery,
@@ -83,17 +63,37 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
       imageQuality: 90,
     );
     if (picked == null) return;
-    final mimeType = _mimeTypeFor(picked);
-    final bytes = await picked.readAsBytes();
     if (!mounted) return;
-    if (mimeType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('La portada debe ser JPG, PNG, WebP o GIF.'),
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      aspectRatio: const CropAspectRatio(ratioX: 2, ratioY: 3),
+      maxWidth: 1200,
+      maxHeight: 1800,
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 90,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Recortar portada',
+          toolbarColor: ReadInnColors.primaryDeep,
+          toolbarWidgetColor: Colors.white,
+          lockAspectRatio: true,
+          hideBottomControls: false,
         ),
-      );
-      return;
-    }
+        IOSUiSettings(
+          title: 'Recortar portada',
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+        ),
+        WebUiSettings(
+          context: context,
+          presentStyle: WebPresentStyle.dialog,
+          size: const CropperSize(width: 420, height: 620),
+        ),
+      ],
+    );
+    if (cropped == null) return;
+    final bytes = await cropped.readAsBytes();
+    if (!mounted) return;
     if (bytes.length > 5 * 1024 * 1024) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('La portada no puede pesar más de 5 MB.')),
@@ -101,9 +101,13 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
       return;
     }
     setState(() {
-      _coverFile = picked;
+      _coverFile = XFile(
+        cropped.path,
+        name: 'cover-${DateTime.now().millisecondsSinceEpoch}.jpg',
+        mimeType: 'image/jpeg',
+      );
       _coverBytes = bytes;
-      _coverMimeType = mimeType;
+      _coverMimeType = 'image/jpeg';
     });
   }
 
@@ -248,7 +252,7 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
                       ),
                       const SizedBox(height: 5),
                       const Text(
-                        'JPG, PNG, WebP o GIF de hasta 5 MB.',
+                        'Recorte vertical 2:3, hasta 5 MB.',
                         style: TextStyle(
                           color: ReadInnColors.muted,
                           fontSize: 12,

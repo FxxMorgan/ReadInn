@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
@@ -198,85 +197,36 @@ class StoryDetailScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                final count = await ref
-                                    .read(apiServiceProvider)
-                                    .downloadStoryForOffline(story.id);
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        '$count capitulos disponibles sin conexion.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.offline_pin_outlined),
-                              label: const Text('Sin conexion'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => showModalBottomSheet<void>(
-                                context: context,
-                                showDragHandle: true,
-                                builder: (sheetContext) => SafeArea(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      ListTile(
-                                        leading: const Icon(
-                                          Icons.menu_book_outlined,
-                                        ),
-                                        title: const Text('Descargar EPUB'),
-                                        onTap: () async {
-                                          Navigator.pop(sheetContext);
-                                          await launchUrl(
-                                            ref
-                                                .read(apiServiceProvider)
-                                                .storyDownloadUri(
-                                                  story.id,
-                                                  'epub',
-                                                ),
-                                            mode:
-                                                LaunchMode.externalApplication,
-                                          );
-                                        },
-                                      ),
-                                      ListTile(
-                                        leading: const Icon(
-                                          Icons.picture_as_pdf_outlined,
-                                        ),
-                                        title: const Text('Descargar PDF'),
-                                        onTap: () async {
-                                          Navigator.pop(sheetContext);
-                                          await launchUrl(
-                                            ref
-                                                .read(apiServiceProvider)
-                                                .storyDownloadUri(
-                                                  story.id,
-                                                  'pdf',
-                                                ),
-                                            mode:
-                                                LaunchMode.externalApplication,
-                                          );
-                                        },
-                                      ),
-                                    ],
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            try {
+                              final count = await ref
+                                  .read(apiServiceProvider)
+                                  .downloadStoryForOffline(story.id);
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '$count capitulos disponibles sin conexion.',
                                   ),
                                 ),
-                              ),
-                              icon: const Icon(Icons.download_outlined),
-                              label: const Text('Exportar'),
-                            ),
-                          ),
-                        ],
+                              );
+                            } catch (_) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'No pudimos guardar la obra sin conexion.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.offline_pin_outlined),
+                          label: const Text('Guardar obra sin conexion'),
+                        ),
                       ),
                     ],
                   ),
@@ -414,12 +364,31 @@ class StoryDetailScreen extends ConsumerWidget {
                               '/story/${story.id}/read/${chapter.id}',
                             ),
                             onDownload: () async {
-                              await launchUrl(
-                                ref
+                              try {
+                                await ref
                                     .read(apiServiceProvider)
-                                    .chapterDownloadUri(story.id, chapter.id),
-                                mode: LaunchMode.externalApplication,
-                              );
+                                    .downloadChapterForOffline(
+                                      story.id,
+                                      chapter.id,
+                                    );
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      '${chapter.title} disponible sin conexion.',
+                                    ),
+                                  ),
+                                );
+                              } catch (_) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'No pudimos guardar el capitulo.',
+                                    ),
+                                  ),
+                                );
+                              }
                             },
                           );
                         }),
@@ -554,7 +523,7 @@ class _ChapterRow extends StatelessWidget {
             ),
           ),
           IconButton(
-            tooltip: 'Descargar capitulo',
+            tooltip: 'Guardar sin conexion',
             onPressed: onDownload,
             icon: const Icon(
               Icons.download_outlined,
