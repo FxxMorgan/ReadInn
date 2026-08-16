@@ -42,9 +42,14 @@ describe('ReadInn API', () => {
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.json<{ data: { user: { username: string; displayName: string } } }>().data.user).toMatchObject({
+    expect(
+      response.json<{
+        data: { user: { username: string; displayName: string; isAdmin: boolean } };
+      }>().data.user,
+    ).toMatchObject({
       username: 'feer',
       displayName: 'Feer',
+      isAdmin: false,
     });
     await app.close();
   });

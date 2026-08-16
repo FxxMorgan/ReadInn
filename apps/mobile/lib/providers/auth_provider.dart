@@ -12,6 +12,7 @@ class UserAccount {
   final String displayName;
   final String bio;
   final String? avatarUrl;
+  final bool isAdmin;
 
   const UserAccount({
     required this.id,
@@ -20,6 +21,7 @@ class UserAccount {
     required this.displayName,
     this.bio = '',
     this.avatarUrl,
+    this.isAdmin = false,
   });
 
   factory UserAccount.fromJson(Map<String, dynamic> json) => UserAccount(
@@ -32,6 +34,7 @@ class UserAccount {
         'Usuario',
     bio: json['bio'] as String? ?? '',
     avatarUrl: json['avatarUrl'] as String?,
+    isAdmin: json['isAdmin'] as bool? ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -41,6 +44,7 @@ class UserAccount {
     'displayName': displayName,
     'bio': bio,
     'avatarUrl': avatarUrl,
+    'isAdmin': isAdmin,
   };
 }
 
@@ -183,6 +187,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         displayName: data['displayName'] as String? ?? displayName,
         bio: data['bio'] as String? ?? bio,
         avatarUrl: data['avatarUrl'] as String? ?? avatarUrl,
+        isAdmin: current.isAdmin,
       );
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_userKey, jsonEncode(updated.toJson()));

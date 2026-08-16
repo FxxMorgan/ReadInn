@@ -15,6 +15,16 @@ function contentToParagraphs(content: unknown): string[] { if (Array.isArray(con
 function metrics(plainText: string) { const wordCount = plainText.split(/\s+/).filter(Boolean).length; return { wordCount, estimatedReadMin: Math.max(1, Math.ceil(wordCount / 200)) }; }
 
 export class WriterRepository {
+  async getAllStories(includeArchived = false): Promise<StorySummary[]> {
+    if (!(await checkDatabaseConnection())) {
+      return Array.from(offlineStoriesByAuthor.values())
+        .flat()
+        .filter((story) => includeArchived || story.status !== 'archived');
+    }
+    const stories = await prisma.story.findMany({ where: includeArchived ? {} : { status: { not: 'archived' } }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, _count: { select: { chapters: true } } } });
+    return stories.map((story) => ({ id: story.id, title: story.title, author: story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
+  }
+
   async getUserStories(authorId: string, includeArchived = false): Promise<StorySummary[]> {
     if (!(await checkDatabaseConnection())) return (offlineStoriesByAuthor.get(authorId) ?? []).filter((story) => includeArchived || story.status !== 'archived');
     const stories = await prisma.story.findMany({ where: { authorId, ...(includeArchived ? {} : { status: { not: 'archived' } }) }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, _count: { select: { chapters: true } } } });

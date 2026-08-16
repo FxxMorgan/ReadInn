@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { bearerClaims } from '../../shared/auth.js';
 import { contentCache, storyCacheTags } from '../../shared/content-cache.js';
-import { checkDatabaseConnection } from '../../shared/db.js';
+import { checkDatabaseConnection, prisma } from '../../shared/db.js';
 import { writerRepository } from './writer-repository.js';
 
 const createStorySchema = z.object({
@@ -26,18 +26,55 @@ const updateChapterSchema = z.object({
   expectedVersion: z.number().int().min(1),
 });
 
-function resolveUserId(request: FastifyRequest): string | null {
-  return bearerClaims(request.headers.authorization)?.userId ?? null;
+interface WriterAccess {
+  userId: string;
+  isAdmin: boolean;
 }
 
-async function requireAuthor(request: FastifyRequest, reply: FastifyReply): Promise<string | null> {
-  const userId = resolveUserId(request);
-  if (userId) return userId;
-  if (!(await checkDatabaseConnection())) return 'guest';
+async function resolveWriterAccess(request: FastifyRequest): Promise<WriterAccess | null> {
+  const userId = bearerClaims(request.headers.authorization)?.userId ?? null;
+  if (!userId) return null;
+  if (!(await checkDatabaseConnection())) return { userId, isAdmin: false };
+  const user = await prisma.user.findFirst({
+    where: { id: userId, accountStatus: 'active', deletedAt: null },
+    select: { id: true, isAdmin: true },
+  });
+  return user ? { userId: user.id, isAdmin: user.isAdmin } : null;
+}
+
+async function requireWriter(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<WriterAccess | null> {
+  const access = await resolveWriterAccess(request);
+  if (access) return access;
+  if (!(await checkDatabaseConnection())) return { userId: 'guest', isAdmin: false };
   await reply.status(401).send({
     error: { code: 'AUTH_REQUIRED', message: 'Inicia sesion para gestionar tus obras.' },
   });
   return null;
+}
+
+async function storyAuthorId(access: WriterAccess, storyId: string): Promise<string | null> {
+  if (!access.isAdmin || !(await checkDatabaseConnection())) return access.userId;
+  const story = await prisma.story.findUnique({
+    where: { id: storyId },
+    select: { authorId: true },
+  });
+  return story?.authorId ?? null;
+}
+
+async function chapterAuthorId(
+  access: WriterAccess,
+  storyId: string,
+  chapterId: string,
+): Promise<string | null> {
+  if (!access.isAdmin || !(await checkDatabaseConnection())) return access.userId;
+  const chapter = await prisma.chapter.findFirst({
+    where: { id: chapterId, storyId },
+    select: { story: { select: { authorId: true } } },
+  });
+  return chapter?.story.authorId ?? null;
 }
 
 async function invalidateStory(storyId: string, chapterId?: string): Promise<void> {
@@ -46,15 +83,25 @@ async function invalidateStory(storyId: string, chapterId?: string): Promise<voi
 
 export function registerWriterRoutes(app: FastifyInstance): void {
   app.get('/v1/me/stories', async (request) => {
-    const authorId = resolveUserId(request);
-    if (!authorId) return { data: [] };
+    const access = await resolveWriterAccess(request);
+    if (!access) return { data: [] };
     const includeArchived = (request.query as { includeArchived?: string })?.includeArchived === 'true';
-    return { data: await writerRepository.getUserStories(authorId, includeArchived) };
+    return {
+      data: access.isAdmin
+        ? await writerRepository.getAllStories(includeArchived)
+        : await writerRepository.getUserStories(access.userId, includeArchived),
+    };
   });
 
   app.get<{ Params: { storyId: string } }>('/v1/me/stories/:storyId', async (request, reply) => {
-    const authorId = await requireAuthor(request, reply);
-    if (!authorId) return;
+    const access = await requireWriter(request, reply);
+    if (!access) return;
+    const authorId = await storyAuthorId(access, request.params.storyId);
+    if (!authorId) {
+      return reply.status(404).send({
+        error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' },
+      });
+    }
     const story = await writerRepository.getUserStory(authorId, request.params.storyId);
     if (!story) {
       return reply.status(404).send({
@@ -66,10 +113,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
 
   app.post('/v1/stories', async (request, reply) => {
     const body = createStorySchema.parse(request.body);
-    const authorId = await requireAuthor(request, reply);
-    if (!authorId) return;
+    const access = await requireWriter(request, reply);
+    if (!access) return;
     const story = await writerRepository.createStory({
-      authorId,
+      authorId: access.userId,
       title: body.title,
       synopsis: body.synopsis,
       genre: body.genre,
@@ -83,8 +130,14 @@ export function registerWriterRoutes(app: FastifyInstance): void {
 
   app.post<{ Params: { storyId: string } }>('/v1/stories/:storyId/chapters', async (request, reply) => {
     const body = createChapterSchema.parse(request.body);
-    const authorId = await requireAuthor(request, reply);
-    if (!authorId) return;
+    const access = await requireWriter(request, reply);
+    if (!access) return;
+    const authorId = await storyAuthorId(access, request.params.storyId);
+    if (!authorId) {
+      return reply.status(404).send({
+        error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' },
+      });
+    }
     const story = await writerRepository.getUserStory(authorId, request.params.storyId);
     if (!story) {
       return reply.status(404).send({
@@ -104,8 +157,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   app.get<{ Params: { storyId: string; chapterId: string } }>(
     '/v1/me/stories/:storyId/chapters/:chapterId',
     async (request, reply) => {
-      const authorId = await requireAuthor(request, reply);
-      if (!authorId) return;
+      const access = await requireWriter(request, reply);
+      if (!access) return;
+      const authorId = await chapterAuthorId(access, request.params.storyId, request.params.chapterId);
+      if (!authorId) return reply.status(404).send({ error: { code: 'CHAPTER_NOT_FOUND', message: 'No se encontro el capitulo.' } });
       const chapter = await writerRepository.getChapter(
         authorId,
         request.params.storyId,
@@ -124,8 +179,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
     '/v1/me/stories/:storyId/chapters/:chapterId',
     async (request, reply) => {
       const body = updateChapterSchema.parse(request.body);
-      const authorId = await requireAuthor(request, reply);
-      if (!authorId) return;
+      const access = await requireWriter(request, reply);
+      if (!access) return;
+      const authorId = await chapterAuthorId(access, request.params.storyId, request.params.chapterId);
+      if (!authorId) return reply.status(404).send({ error: { code: 'CHAPTER_NOT_FOUND', message: 'No se encontro el capitulo.' } });
       const result = await writerRepository.updateChapter({
         authorId,
         chapterId: request.params.chapterId,
@@ -156,8 +213,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   app.delete<{ Params: { storyId: string; chapterId: string } }>(
     '/v1/me/stories/:storyId/chapters/:chapterId',
     async (request, reply) => {
-      const authorId = await requireAuthor(request, reply);
-      if (!authorId) return;
+      const access = await requireWriter(request, reply);
+      if (!access) return;
+      const authorId = await chapterAuthorId(access, request.params.storyId, request.params.chapterId);
+      if (!authorId) return reply.status(404).send({ error: { code: 'CHAPTER_NOT_FOUND', message: 'No se encontro el capitulo.' } });
       const result = await writerRepository.deleteChapter(
         authorId,
         request.params.storyId,
@@ -176,8 +235,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   app.post<{ Params: { storyId: string; chapterId: string } }>(
     '/v1/me/stories/:storyId/chapters/:chapterId/publish',
     async (request, reply) => {
-      const authorId = await requireAuthor(request, reply);
-      if (!authorId) return;
+      const access = await requireWriter(request, reply);
+      if (!access) return;
+      const authorId = await chapterAuthorId(access, request.params.storyId, request.params.chapterId);
+      if (!authorId) return reply.status(404).send({ error: { code: 'CHAPTER_NOT_FOUND', message: 'No se encontro el capitulo.' } });
       const result = await writerRepository.publishChapter(authorId, request.params.chapterId);
       if (!result) {
         return reply.status(404).send({
@@ -192,8 +253,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   app.get<{ Params: { storyId: string; chapterId: string } }>(
     '/v1/me/stories/:storyId/chapters/:chapterId/revisions',
     async (request, reply) => {
-      const authorId = await requireAuthor(request, reply);
-      if (!authorId) return;
+      const access = await requireWriter(request, reply);
+      if (!access) return;
+      const authorId = await chapterAuthorId(access, request.params.storyId, request.params.chapterId);
+      if (!authorId) return reply.status(404).send({ error: { code: 'CHAPTER_NOT_FOUND', message: 'No se encontro el capitulo.' } });
       return { data: await writerRepository.revisions(authorId, request.params.chapterId) };
     },
   );
@@ -201,8 +264,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   app.post<{ Params: { storyId: string; chapterId: string; revisionId: string } }>(
     '/v1/me/stories/:storyId/chapters/:chapterId/revisions/:revisionId/restore',
     async (request, reply) => {
-      const authorId = await requireAuthor(request, reply);
-      if (!authorId) return;
+      const access = await requireWriter(request, reply);
+      if (!access) return;
+      const authorId = await chapterAuthorId(access, request.params.storyId, request.params.chapterId);
+      if (!authorId) return reply.status(404).send({ error: { code: 'CHAPTER_NOT_FOUND', message: 'No se encontro el capitulo.' } });
       const result = await writerRepository.restoreRevision(
         authorId,
         request.params.chapterId,
@@ -219,8 +284,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   );
 
   app.post<{ Params: { storyId: string } }>('/v1/me/stories/:storyId/publish', async (request, reply) => {
-    const authorId = await requireAuthor(request, reply);
-    if (!authorId) return;
+    const access = await requireWriter(request, reply);
+    if (!access) return;
+    const authorId = await storyAuthorId(access, request.params.storyId);
+    if (!authorId) return reply.status(404).send({ error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' } });
     const result = await writerRepository.publishStory(authorId, request.params.storyId);
     if (!result) {
       return reply.status(404).send({
@@ -232,8 +299,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   });
 
   app.delete<{ Params: { storyId: string } }>('/v1/me/stories/:storyId', async (request, reply) => {
-    const authorId = await requireAuthor(request, reply);
-    if (!authorId) return;
+    const access = await requireWriter(request, reply);
+    if (!access) return;
+    const authorId = await storyAuthorId(access, request.params.storyId);
+    if (!authorId) return reply.status(404).send({ error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' } });
     const result = await writerRepository.archiveStory(authorId, request.params.storyId);
     if (!result) {
       return reply.status(404).send({
@@ -245,8 +314,10 @@ export function registerWriterRoutes(app: FastifyInstance): void {
   });
 
   app.post<{ Params: { storyId: string } }>('/v1/me/stories/:storyId/restore', async (request, reply) => {
-    const authorId = await requireAuthor(request, reply);
-    if (!authorId) return;
+    const access = await requireWriter(request, reply);
+    if (!access) return;
+    const authorId = await storyAuthorId(access, request.params.storyId);
+    if (!authorId) return reply.status(404).send({ error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' } });
     const result = await writerRepository.restoreStory(authorId, request.params.storyId);
     if (!result) {
       return reply.status(404).send({

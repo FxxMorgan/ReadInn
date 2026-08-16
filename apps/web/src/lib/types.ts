@@ -8,6 +8,7 @@ export interface UserAccount {
   displayName: string;
   bio?: string;
   avatarUrl?: string;
+  isAdmin?: boolean;
 }
 
 export interface ChapterSummary {

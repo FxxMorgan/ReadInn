@@ -100,7 +100,7 @@ export default function StudioPage() {
   return (
     <div className="page">
       <div className="page-heading">
-        <div><span className="eyebrow">Escritorio de creador</span><h1>Tus historias</h1><p>Escribe con calma, guarda borradores y publica cuando tu capitulo este listo.</p></div>
+        <div><span className="eyebrow">{user?.isAdmin ? 'Administracion' : 'Escritorio de creador'}</span><h1>{user?.isAdmin ? 'Todas las historias' : 'Tus historias'}</h1><p>{user?.isAdmin ? 'Revisa y administra las obras publicadas por toda la comunidad.' : 'Escribe con calma, guarda borradores y publica cuando tu capitulo este listo.'}</p></div>
         <button className="primary-button" onClick={() => setShowCreate(true)}><Plus size={18} />Nueva obra</button>
       </div>
       <div className="studio-filters">
@@ -117,6 +117,7 @@ export default function StudioPage() {
               <div>
                 <span className={`status ${story.status}`}>{story.status === 'draft' ? 'Borrador' : story.status === 'archived' ? 'Archivada' : 'Publicada'}</span>
                 <h2>{story.title}</h2><p>{story.synopsis}</p>
+                {user?.isAdmin && <p>Por {story.author} (@{story.authorUsername})</p>}
                 <div className="studio-card-meta"><span>{story.chapterCount} capitulos</span><Link href={`/studio/${story.id}`}><PenLine size={16} />Administrar</Link></div>
               </div>
               {story.status === 'archived' ? (

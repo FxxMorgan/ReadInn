@@ -67,6 +67,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             email: body.email,
             username,
             displayName,
+            isAdmin: false,
           },
           token,
           refreshToken: refreshToken(`user-${username}`),
@@ -74,35 +75,39 @@ export function registerAuthRoutes(app: FastifyInstance): void {
       });
     }
 
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: body.email },
-          { username: { equals: username, mode: 'insensitive' } },
-        ],
-      },
-    });
-
-    if (existingUser) {
-      throw new AppError('USER_EXISTS', 'El correo o nombre de usuario ya está registrado.', 400);
-    }
-
     const passwordHash = hashPassword(body.password);
 
-    const user = await prisma.user.create({
-      data: {
-        email: body.email,
-        username,
-        passwordHash,
-        accountStatus: 'active',
-        profile: {
-          create: {
-            displayName,
-            locale: 'es',
+    const user = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(731942581)`;
+      const existingUser = await tx.user.findFirst({
+        where: {
+          OR: [
+            { email: body.email },
+            { username: { equals: username, mode: 'insensitive' } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (existingUser) {
+        throw new AppError('USER_EXISTS', 'El correo o nombre de usuario ya esta registrado.', 400);
+      }
+      const isFirstUser = (await tx.user.count()) === 0;
+      return tx.user.create({
+        data: {
+          email: body.email,
+          username,
+          passwordHash,
+          accountStatus: 'active',
+          isAdmin: isFirstUser,
+          profile: {
+            create: {
+              displayName,
+              locale: 'es',
+            },
           },
         },
-      },
-      include: { profile: true },
+        include: { profile: true },
+      });
     });
 
     const token = accessToken(user.id, user.email);
@@ -116,6 +121,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           username: user.username,
           displayName: user.profile?.displayName ?? user.username,
           avatarUrl: user.profile?.avatarUrl ?? null,
+          isAdmin: user.isAdmin,
         },
         token,
         refreshToken: nextRefreshToken,
@@ -137,6 +143,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             email: body.email,
             username,
             displayName: username,
+            isAdmin: false,
           },
           token,
           refreshToken: refreshToken(`user-${username}`),
@@ -164,6 +171,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           username: user.username,
           displayName: user.profile?.displayName ?? user.username,
           avatarUrl: user.profile?.avatarUrl ?? null,
+          isAdmin: user.isAdmin,
         },
         token,
         refreshToken: nextRefreshToken,
@@ -237,6 +245,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           email: 'invitado@readinn.app',
           username: 'invitado',
           displayName: 'Invitado',
+          isAdmin: false,
         },
       };
     }
@@ -256,6 +265,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             displayName: user.profile?.displayName ?? user.username,
             bio: user.profile?.bio ?? '',
             avatarUrl: user.profile?.avatarUrl ?? null,
+            isAdmin: user.isAdmin,
           },
         };
       }
@@ -267,6 +277,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         username: 'invitado',
         displayName: 'Invitado',
         bio: '',
+        isAdmin: false,
       },
     };
   });

@@ -55,15 +55,19 @@ class WriterDashboardScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Escritorio de creador',
+              auth.user?.isAdmin == true
+                  ? 'Administracion de obras'
+                  : 'Escritorio de creador',
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Gestiona tus historias y conecta con tus lectores.',
-              style: TextStyle(color: ReadInnColors.muted),
+            Text(
+              auth.user?.isAdmin == true
+                  ? 'Gestiona las historias de toda la comunidad.'
+                  : 'Gestiona tus historias y conecta con tus lectores.',
+              style: const TextStyle(color: ReadInnColors.muted),
             ),
             if (!auth.isAuthenticated) ...[
               const SizedBox(height: 24),
@@ -151,7 +155,9 @@ class WriterDashboardScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 28),
               SectionHeader(
-                title: 'Mis obras',
+                title: auth.user?.isAdmin == true
+                    ? 'Todas las obras'
+                    : 'Mis obras',
                 actionLabel: showAll ? 'Ver menos' : 'Ver todas',
                 onAction: () =>
                     ref.read(showAllStoriesProvider.notifier).state = !showAll,
@@ -173,7 +179,10 @@ class WriterDashboardScreen extends ConsumerWidget {
                         .map(
                           (story) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _WriterStoryCard(story: story),
+                            child: _WriterStoryCard(
+                              story: story,
+                              showAuthor: auth.user?.isAdmin == true,
+                            ),
                           ),
                         )
                         .toList(),
@@ -190,7 +199,8 @@ class WriterDashboardScreen extends ConsumerWidget {
 
 class _WriterStoryCard extends StatelessWidget {
   final StorySummary story;
-  const _WriterStoryCard({required this.story});
+  final bool showAuthor;
+  const _WriterStoryCard({required this.story, this.showAuthor = false});
 
   @override
   Widget build(BuildContext context) {
@@ -234,6 +244,16 @@ class _WriterStoryCard extends StatelessWidget {
                         fontSize: 15,
                       ),
                     ),
+                    if (showAuthor) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'Por ${story.author} (@${story.authorUsername})',
+                        style: const TextStyle(
+                          color: ReadInnColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 4),
                     Text(
                       '${story.genre} · ${story.chapterCount} capitulos',
