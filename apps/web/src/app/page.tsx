@@ -4,11 +4,22 @@ import Link from 'next/link';
 import { SlidersHorizontal, Star, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BookCard } from '@/components/book-card';
+import { StoryShelf } from '@/components/story-shelf';
 import { apiFetch } from '@/lib/api';
 import { normalizeStoryTaxonomy } from '@/lib/story-taxonomy';
 import type { StorySummary, StoryTaxonomy } from '@/lib/types';
 
 const emptyTaxonomy: StoryTaxonomy = { genres: [], tagGroups: [], sortOptions: [], ageRatings: [] };
+const shelfDefinitions = [
+  { key: 'trending', title: 'Tendencias', description: 'Las historias que más están leyendo ahora.' },
+  { key: 'new', title: 'Recién publicadas', description: 'Nuevas historias para descubrir.', sort: 'recent' },
+  { key: 'comedy', title: 'Comedia', description: 'Historias ligeras, divertidas y con buen humor.', genres: ['Comedia'] },
+  { key: 'drama', title: 'Drama', description: 'Conflictos humanos, decisiones difíciles y emociones intensas.', genres: ['Drama'] },
+  { key: 'fantasy', title: 'Aventura y fantasía', description: 'Mundos imposibles, viajes y grandes desafíos.', genres: ['Aventura', 'Fantasía'] },
+  { key: 'romance', title: 'Romance', description: 'Encuentros, decisiones y vínculos que dejan huella.', genres: ['Romance'] },
+] as const;
+
+type ShelfKey = typeof shelfDefinitions[number]['key'];
 
 export default function ExplorePage() {
   const [stories, setStories] = useState<StorySummary[]>([]);
@@ -23,6 +34,15 @@ export default function ExplorePage() {
   const [minRating, setMinRating] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState('');
+  const [showAllResults, setShowAllResults] = useState(false);
+  const [shelves, setShelves] = useState<Record<ShelfKey, StorySummary[]>>({
+    trending: [],
+    new: [],
+    comedy: [],
+    drama: [],
+    fantasy: [],
+    romance: [],
+  });
 
   const activeFilters = genres.length + tags.length + Number(mature !== 'exclude') + Number(minChapters > 0) + Number(minRating > 0);
   const searchParams = useMemo(() => {
@@ -43,6 +63,28 @@ export default function ExplorePage() {
   }, []);
 
   useEffect(() => {
+    const shelfRequest = (shelf: typeof shelfDefinitions[number]) => {
+      const params = new URLSearchParams({ limit: '12', sort: 'genre' in shelf ? 'popular' : ('sort' in shelf ? shelf.sort : 'popular'), mature: 'exclude' });
+      if ('genres' in shelf) params.set('genres', shelf.genres.join(','));
+      return apiFetch<StorySummary[]>(`/v1/stories?${params}`);
+    };
+    void Promise.all(shelfDefinitions.map(shelfRequest))
+      .then((items) => setShelves({
+        trending: items[0] ?? [],
+        new: items[1] ?? [],
+        comedy: items[2] ?? [],
+        drama: items[3] ?? [],
+        fantasy: items[4] ?? [],
+        romance: items[5] ?? [],
+      }))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!query && !activeFilters && !showAllResults) {
+      setError('');
+      return;
+    }
     const timeout = setTimeout(() => {
       setError('');
       void apiFetch<StorySummary[]>(`/v1/stories?${searchParams}`)
@@ -50,15 +92,31 @@ export default function ExplorePage() {
         .catch((reason) => setError(reason.message));
     }, 220);
     return () => clearTimeout(timeout);
-  }, [searchParams]);
+  }, [activeFilters, query, searchParams, showAllResults]);
 
   function toggle(value: string, values: string[], update: (next: string[]) => void) {
     update(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
   }
 
   function clearFilters() {
-    setGenres([]); setTags([]); setSort('recent'); setMature('exclude'); setMinChapters(0); setMinRating(0);
+    setGenres([]); setTags([]); setSort('recent'); setMature('exclude'); setMinChapters(0); setMinRating(0); setShowAllResults(false);
   }
+
+  function showShelf(shelf: typeof shelfDefinitions[number]) {
+    setQuery('');
+    setTags([]);
+    setMature('exclude');
+    setMinChapters(0);
+    setMinRating(0);
+    setSort('popular');
+    setGenres('genres' in shelf ? [...shelf.genres] : []);
+    setSort('sort' in shelf ? shelf.sort : 'popular');
+    setShowAllResults(true);
+    setShowFilters('genres' in shelf);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const showingShelves = !query && !activeFilters && !showAllResults;
 
   return (
     <div className="page discovery-page">
@@ -78,10 +136,22 @@ export default function ExplorePage() {
         {activeFilters > 0 && <button className="clear-filters" onClick={clearFilters}>Limpiar filtros</button>}
       </section>}
 
-      {featured && !query && !activeFilters && <section className="featured-story"><div><span className="eyebrow">Destacada de las ultimas 24 horas</span><h2>{featured.title}</h2><p>{featured.synopsis}</p><div><span>{featured.author}</span>{featured.averageRating ? <span><Star size={14} />{featured.averageRating.toFixed(1)}</span> : null}</div><Link className="primary-button" href={`/stories/${featured.id}`}>Leer ahora</Link></div><BookCard story={featured} /></section>}
+      {featured && showingShelves && <section className="featured-story"><div><span className="eyebrow">Destacada de las ultimas 24 horas</span><h2>{featured.title}</h2><p>{featured.synopsis}</p><div><span>{featured.author}</span>{featured.averageRating ? <span><Star size={14} />{featured.averageRating.toFixed(1)}</span> : null}</div><Link className="primary-button" href={`/stories/${featured.id}`}>Leer ahora</Link></div><BookCard story={featured} /></section>}
 
-      <div className="results-heading"><h2>{query || activeFilters ? 'Resultados' : 'Tendencias'}</h2><span>{stories.length} obras</span></div>
-      {error ? <div className="error-state">{error}</div> : stories.length ? <div className="book-grid">{stories.map((story) => <BookCard key={story.id} story={story} />)}</div> : <div className="empty-state">No encontramos obras con estos filtros.</div>}
+      {showingShelves ? (
+        <div className="home-shelves">
+          {shelfDefinitions.map((shelf) => {
+            const items = shelves[shelf.key];
+            if (!items.length) return null;
+            return <StoryShelf key={shelf.key} title={shelf.title} description={shelf.description} stories={items} onMore={() => showShelf(shelf)} />;
+          })}
+        </div>
+      ) : (
+        <>
+          <div className="results-heading"><h2>Resultados</h2><span>{stories.length} obras</span></div>
+          {error ? <div className="error-state">{error}</div> : stories.length ? <div className="book-grid">{stories.map((story) => <BookCard key={story.id} story={story} />)}</div> : <div className="empty-state">No encontramos obras con estos filtros.</div>}
+        </>
+      )}
     </div>
   );
 }
