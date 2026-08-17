@@ -1,9 +1,11 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { AppError } from '../../shared/errors.js';
 import { storyRepository } from './story-repository.js';
 import { buildEpub, buildPdf, type ExportChapter } from './story-export.js';
 import { storyTaxonomyResponse } from './story-taxonomy.js';
+import { bearerClaims } from '../../shared/auth.js';
+import { checkDatabaseConnection, prisma } from '../../shared/db.js';
 
 const csvValues = z.preprocess((value) => {
   if (Array.isArray(value)) return value.flatMap((item) => String(item).split(','));
@@ -19,6 +21,7 @@ const listQuerySchema = z.object({
   genreMode: z.enum(['any', 'all']).default('any'),
   tagMode: z.enum(['any', 'all']).default('any'),
   mature: z.enum(['exclude', 'include', 'only']).default('exclude'),
+  ageRatings: csvValues,
   language: z.string().trim().min(2).max(10).optional(),
   minChapters: z.coerce.number().int().min(0).max(10000).default(0),
   minRating: z.coerce.number().min(0).max(5).default(0),
@@ -38,6 +41,24 @@ function safeFilename(value: string): string {
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
     .toLowerCase() || 'obra';
+}
+
+async function requireAdultAccess(request: FastifyRequest, storyId: string): Promise<void> {
+  if (!(await checkDatabaseConnection())) return;
+  const story = await prisma.story.findFirst({
+    where: { OR: [{ id: storyId }, { slug: storyId }] },
+    select: { ageRating: true },
+  });
+  if (!story || story.ageRating !== '18') return;
+  const claims = bearerClaims(request.headers.authorization);
+  if (!claims) throw new AppError('ADULT_AUTH_REQUIRED', 'Inicia sesion para acceder a contenido +18.', 401);
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId: claims.userId },
+    select: { adultConfirmedAt: true },
+  });
+  if (!profile?.adultConfirmedAt) {
+    throw new AppError('ADULT_CONFIRMATION_REQUIRED', 'Confirma que eres mayor de 18 anos para continuar.', 403);
+  }
 }
 
 export function registerStoryRoutes(app: FastifyInstance): void {
@@ -69,6 +90,7 @@ export function registerStoryRoutes(app: FastifyInstance): void {
   app.get<{ Params: { storyId: string }; Querystring: { format?: string } }>(
     '/v1/stories/:storyId/download',
     async (request, reply) => {
+      await requireAdultAccess(request, request.params.storyId);
       const query = storyDownloadQuerySchema.parse(request.query);
       const story = await storyRepository.getStoryById(request.params.storyId);
       if (!story) {
@@ -114,6 +136,7 @@ export function registerStoryRoutes(app: FastifyInstance): void {
   app.get<{ Params: { storyId: string; chapterId: string } }>(
     '/v1/stories/:storyId/chapters/:chapterId',
     async (request, reply) => {
+      await requireAdultAccess(request, request.params.storyId);
       const chapter = await storyRepository.getChapterById(
         request.params.storyId,
         request.params.chapterId
@@ -129,6 +152,7 @@ export function registerStoryRoutes(app: FastifyInstance): void {
   app.get<{ Params: { storyId: string; chapterId: string } }>(
     '/v1/stories/:storyId/chapters/:chapterId/download',
     async (request, reply) => {
+      await requireAdultAccess(request, request.params.storyId);
       const chapter = await storyRepository.getChapterById(
         request.params.storyId,
         request.params.chapterId,

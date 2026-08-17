@@ -113,6 +113,13 @@ components:
         isMature:
           type: boolean
           default: false
+          deprecated: true
+          description: Compatibilidad con clientes antiguos; usa ageRating.
+        ageRating:
+          type: string
+          enum: [all, '11', '13', '16', '18']
+          default: all
+          description: Clasificacion por edad. Las etiquetas pueden elevar el minimo automaticamente.
         status:
           type: string
           enum: [draft, published]

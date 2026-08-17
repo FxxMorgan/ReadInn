@@ -17,7 +17,8 @@ export default function LoginPage() {
     try {
       if (mode === 'login') await auth.login(String(data.get('email')), String(data.get('password')));
       else await auth.register({ email: String(data.get('email')), username: String(data.get('username')), password: String(data.get('password')), displayName: String(data.get('displayName') || '') });
-      router.push('/studio');
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.push(next?.startsWith('/') ? next : '/studio');
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'No pudimos completar el acceso.'); }
     finally { setBusy(false); }
   }

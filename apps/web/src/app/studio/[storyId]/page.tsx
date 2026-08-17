@@ -2,18 +2,31 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Eye, FilePlus2, ImagePlus, PenLine, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, Eye, FilePlus2, ImagePlus, PenLine, Save, Send, Tags, Trash2 } from 'lucide-react';
 import { CoverCropDialog } from '@/components/cover-crop-dialog';
 import { apiFetch, apiUrl } from '@/lib/api';
-import type { ChapterSummary, StoryDetail } from '@/lib/types';
+import type { ChapterSummary, StoryDetail, StoryTaxonomy } from '@/lib/types';
 
 export default function ManageStoryPage({ params }: { params: { storyId: string } }) {
   const [story, setStory] = useState<StoryDetail | null>(null);
   const [coverCrop, setCoverCrop] = useState<{ source: string; filename: string } | null>(null);
   const [coverSaving, setCoverSaving] = useState(false);
+  const [taxonomy, setTaxonomy] = useState<StoryTaxonomy | null>(null);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [ageRating, setAgeRating] = useState<'all' | '11' | '13' | '16' | '18'>('all');
+  const [taxonomySaving, setTaxonomySaving] = useState(false);
+  const [taxonomyMessage, setTaxonomyMessage] = useState('');
   const coverInput = useRef<HTMLInputElement>(null);
-  const load = useCallback(async () => setStory(await apiFetch<StoryDetail>(`/v1/me/stories/${params.storyId}`)), [params.storyId]);
+  const load = useCallback(async () => {
+    const loaded = await apiFetch<StoryDetail>(`/v1/me/stories/${params.storyId}`);
+    setStory(loaded);
+    setSelectedGenres(loaded.genres?.length ? loaded.genres : [loaded.genre]);
+    setSelectedTags(loaded.tags?.map((tag) => tag.name) ?? []);
+    setAgeRating(loaded.ageRating ?? (loaded.isMature ? '18' : 'all'));
+  }, [params.storyId]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void apiFetch<StoryTaxonomy>('/v1/stories/filters').then(setTaxonomy); }, []);
 
   async function createChapter() {
     const chapter = await apiFetch<ChapterSummary>(`/v1/stories/${params.storyId}/chapters`, {
@@ -54,6 +67,39 @@ export default function ManageStoryPage({ params }: { params: { storyId: string 
     }
   }
 
+  function toggleGenre(genre: string) {
+    setSelectedGenres((current) => current.includes(genre)
+      ? current.filter((item) => item !== genre)
+      : current.length < 5 ? [...current, genre] : current);
+  }
+
+  function toggleTag(tag: string) {
+    setSelectedTags((current) => current.includes(tag)
+      ? current.filter((item) => item !== tag)
+      : current.length < 20 ? [...current, tag] : current);
+  }
+
+  async function saveTaxonomy() {
+    if (!selectedGenres.length) {
+      setTaxonomyMessage('Selecciona al menos un genero.');
+      return;
+    }
+    setTaxonomySaving(true);
+    setTaxonomyMessage('');
+    try {
+      await apiFetch(`/v1/me/stories/${params.storyId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ genres: selectedGenres, tags: selectedTags, ageRating }),
+      });
+      await load();
+      setTaxonomyMessage('Clasificacion actualizada.');
+    } catch (error) {
+      setTaxonomyMessage(error instanceof Error ? error.message : 'No pudimos actualizar la clasificacion.');
+    } finally {
+      setTaxonomySaving(false);
+    }
+  }
+
   if (!story) return <div className="page"><div className="empty-state">Cargando obra...</div></div>;
   return (
     <div className="page">
@@ -72,6 +118,13 @@ export default function ManageStoryPage({ params }: { params: { storyId: string 
           <button className="primary-button" onClick={createChapter}><FilePlus2 size={17} />Nuevo capitulo</button>
         </div>
       </div>
+      <section className="story-taxonomy-editor">
+        <div className="story-taxonomy-head"><div><Tags size={19} /><div><h2>Clasificacion</h2><p>Generos, tipo, ambientacion, tono y advertencias de contenido.</p></div></div><button className="primary-button" disabled={taxonomySaving || !taxonomy} onClick={() => void saveTaxonomy()}><Save size={16} />{taxonomySaving ? 'Guardando...' : 'Guardar'}</button></div>
+        <div className="field"><label>Generos ({selectedGenres.length}/5)</label><div className="filter-chips">{taxonomy?.genres.map((genre) => <button type="button" key={genre} className={selectedGenres.includes(genre) ? 'active' : ''} onClick={() => toggleGenre(genre)}>{genre}</button>)}</div></div>
+        <div className="field"><label>Clasificacion por edad</label><select value={ageRating} onChange={(event) => setAgeRating(event.target.value as typeof ageRating)}>{taxonomy?.ageRatings.map((rating) => <option key={rating.value} value={rating.value}>{rating.label}</option>)}</select><small>Algunas etiquetas pueden elevar automaticamente la clasificacion minima.</small></div>
+        {taxonomy?.tagGroups.map((group) => <details className="tag-filter-group" key={group.kind} open={selectedTags.some((tag) => group.tags.includes(tag))}><summary>{group.label}<span>{selectedTags.filter((tag) => group.tags.includes(tag)).length || ''}</span></summary><div className="filter-chips">{group.tags.map((tag) => <button type="button" key={tag} className={selectedTags.includes(tag) ? 'active' : ''} onClick={() => toggleTag(tag)}>{tag}</button>)}</div></details>)}
+        {taxonomyMessage && <p className={taxonomyMessage.includes('actualizada') ? 'success-message' : 'form-error'}>{taxonomyMessage}</p>}
+      </section>
       <section className="chapter-manager">
         <div className="chapter-manager-head"><h2>Capitulos</h2><span>{story.chapters.length} en total</span></div>
         {story.chapters.length ? story.chapters.map((chapter) => (

@@ -38,7 +38,7 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
   XFile? _coverFile;
   Uint8List? _coverBytes;
   String? _coverMimeType;
-  bool _isMature = false;
+  String _ageRating = 'all';
   bool _isLoading = false;
 
   @override
@@ -143,7 +143,7 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
         synopsis: synopsis,
         genres: _selectedGenres.toList(),
         tags: _selectedTags.toList(),
-        isMature: _isMature,
+        ageRating: _ageRating,
         authorName: auth.user?.displayName ?? 'Invitado',
         authorUsername: auth.user?.username ?? 'invitado',
         coverUrl: coverUrl,
@@ -381,18 +381,26 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
                 ],
               ),
             ),
-            Row(
-              children: [
-                Checkbox(
-                  value: _isMature,
-                  activeColor: ReadInnColors.primary,
-                  onChanged: _isLoading
-                      ? null
-                      : (value) => setState(() => _isMature = value ?? false),
-                ),
-                const Text('Contenido +18', style: TextStyle(fontSize: 13)),
-              ],
-            ),
+            taxonomy.valueOrNull == null
+                ? const SizedBox.shrink()
+                : DropdownButtonFormField<String>(
+                    initialValue: _ageRating,
+                    decoration: const InputDecoration(
+                      labelText: 'Clasificacion por edad',
+                    ),
+                    items: taxonomy.valueOrNull!.ageRatings
+                        .map(
+                          (rating) => DropdownMenuItem(
+                            value: rating['value'],
+                            child: Text(rating['label'] ?? rating['value']!),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _isLoading
+                        ? null
+                        : (value) =>
+                              setState(() => _ageRating = value ?? 'all'),
+                  ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

@@ -7,7 +7,7 @@ import { BookCard } from '@/components/book-card';
 import { apiFetch } from '@/lib/api';
 import type { StorySummary, StoryTaxonomy } from '@/lib/types';
 
-const emptyTaxonomy: StoryTaxonomy = { genres: [], tagGroups: [], sortOptions: [] };
+const emptyTaxonomy: StoryTaxonomy = { genres: [], tagGroups: [], sortOptions: [], ageRatings: [] };
 
 export default function ExplorePage() {
   const [stories, setStories] = useState<StorySummary[]>([]);

@@ -100,6 +100,155 @@ class ManageStoryScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _editTaxonomy(
+    BuildContext context,
+    WidgetRef ref,
+    StoryDetail story,
+  ) async {
+    final taxonomy = await ref.read(storyTaxonomyProvider.future);
+    if (!context.mounted) return;
+    final genres = <String>{
+      ...(story.genres.isNotEmpty ? story.genres : [story.genre]),
+    };
+    final tags = <String>{...story.tags.map((tag) => tag.name)};
+    var ageRating = story.ageRating;
+    final shouldSave = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .82,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 28),
+              children: [
+                Text(
+                  'Editar clasificación',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Separa los géneros de los tipos, la ambientación, el tono y el contenido.',
+                  style: TextStyle(color: ReadInnColors.muted),
+                ),
+                const SizedBox(height: 18),
+                DropdownButtonFormField<String>(
+                  initialValue: ageRating,
+                  decoration: const InputDecoration(
+                    labelText: 'Clasificación por edad',
+                  ),
+                  items: taxonomy.ageRatings
+                      .map(
+                        (rating) => DropdownMenuItem(
+                          value: rating['value'],
+                          child: Text(rating['label'] ?? rating['value']!),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) =>
+                      setSheetState(() => ageRating = value ?? 'all'),
+                ),
+                const SizedBox(height: 18),
+                Text('Géneros (${genres.length}/5)'),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: taxonomy.genres
+                      .map(
+                        (genre) => FilterChip(
+                          label: Text(genre),
+                          selected: genres.contains(genre),
+                          onSelected: (selected) => setSheetState(() {
+                            if (selected && genres.length < 5) {
+                              genres.add(genre);
+                            } else if (!selected && genres.length > 1) {
+                              genres.remove(genre);
+                            }
+                          }),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 10),
+                ...taxonomy.tagGroups.map(
+                  (group) => ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: Text(group.label),
+                    subtitle: Text(
+                      '${tags.where(group.tags.contains).length} seleccionadas',
+                    ),
+                    children: [
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: group.tags
+                            .map(
+                              (tag) => FilterChip(
+                                label: Text(tag),
+                                selected: tags.contains(tag),
+                                onSelected: (selected) => setSheetState(() {
+                                  if (selected && tags.length < 20) {
+                                    tags.add(tag);
+                                  } else if (!selected) {
+                                    tags.remove(tag);
+                                  }
+                                }),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => Navigator.pop(sheetContext, true),
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Guardar clasificación'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (shouldSave != true || !context.mounted) return;
+    final token = ref.read(authProvider).token;
+    if (token == null) return;
+    try {
+      await ref
+          .read(apiServiceProvider)
+          .updateStory(
+            story.id,
+            token: token,
+            genres: genres.toList(),
+            tags: tags.toList(),
+            ageRating: ageRating,
+          );
+      ref.invalidate(writerStoryDetailProvider(story.id));
+      ref.invalidate(writerStoriesProvider);
+      ref.invalidate(storyDetailProvider(story.id));
+      ref.invalidate(storiesProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Clasificación actualizada.')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No pudimos actualizar la clasificación.'),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _createChapter(
     BuildContext context,
     WidgetRef ref,
@@ -305,6 +454,12 @@ class ManageStoryScreen extends ConsumerWidget {
             Text(
               '${data.genres.isNotEmpty ? data.genres.join(' · ') : data.genre} · ${data.chapters.length} capítulos',
               style: const TextStyle(color: ReadInnColors.muted),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _editTaxonomy(context, ref, data),
+              icon: const Icon(Icons.sell_outlined),
+              label: const Text('Editar géneros y etiquetas'),
             ),
             if (data.status == 'draft') ...[
               const SizedBox(height: 16),

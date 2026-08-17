@@ -60,7 +60,12 @@ typedef ChapterParams = ({String storyId, String chapterId});
 final chapterDetailProvider =
     FutureProvider.family<ChapterDetail, ChapterParams>((ref, params) async {
       final apiService = ref.watch(apiServiceProvider);
-      return apiService.fetchChapterDetail(params.storyId, params.chapterId);
+      final token = ref.watch(authProvider.select((auth) => auth.token));
+      return apiService.fetchChapterDetail(
+        params.storyId,
+        params.chapterId,
+        token: token,
+      );
     });
 
 final chapterCommentsProvider =

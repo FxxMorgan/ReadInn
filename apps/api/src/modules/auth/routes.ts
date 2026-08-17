@@ -36,6 +36,8 @@ const profileUpdateSchema = z.object({
   avatarUrl: z.string().url().nullable().optional(),
 });
 
+const adultConfirmationSchema = z.object({ confirmed: z.literal(true) });
+
 function bearerUserId(authorization?: string): string | null { return bearerClaims(authorization)?.userId ?? null; }
 
 function hashPassword(password: string): string {
@@ -68,6 +70,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             username,
             displayName,
             isAdmin: false,
+            adultConfirmed: false,
           },
           token,
           refreshToken: refreshToken(`user-${username}`),
@@ -122,6 +125,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           displayName: user.profile?.displayName ?? user.username,
           avatarUrl: user.profile?.avatarUrl ?? null,
           isAdmin: user.isAdmin,
+          adultConfirmed: Boolean(user.profile?.adultConfirmedAt),
         },
         token,
         refreshToken: nextRefreshToken,
@@ -144,6 +148,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             username,
             displayName: username,
             isAdmin: false,
+            adultConfirmed: false,
           },
           token,
           refreshToken: refreshToken(`user-${username}`),
@@ -172,6 +177,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           displayName: user.profile?.displayName ?? user.username,
           avatarUrl: user.profile?.avatarUrl ?? null,
           isAdmin: user.isAdmin,
+          adultConfirmed: Boolean(user.profile?.adultConfirmedAt),
         },
         token,
         refreshToken: nextRefreshToken,
@@ -246,6 +252,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
           username: 'invitado',
           displayName: 'Invitado',
           isAdmin: false,
+          adultConfirmed: false,
         },
       };
     }
@@ -266,6 +273,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
             bio: user.profile?.bio ?? '',
             avatarUrl: user.profile?.avatarUrl ?? null,
             isAdmin: user.isAdmin,
+            adultConfirmed: Boolean(user.profile?.adultConfirmedAt),
           },
         };
       }
@@ -278,6 +286,7 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         displayName: 'Invitado',
         bio: '',
         isAdmin: false,
+        adultConfirmed: false,
       },
     };
   });
@@ -324,5 +333,20 @@ export function registerAuthRoutes(app: FastifyInstance): void {
         avatarUrl: body.avatarUrl ?? null,
       },
     };
+  });
+
+  app.post('/v1/auth/me/adult-confirmation', async (request, reply) => {
+    const userId = bearerUserId(request.headers.authorization);
+    adultConfirmationSchema.parse(request.body);
+    if (!userId) {
+      return reply.status(401).send({ error: { code: 'AUTH_REQUIRED', message: 'Inicia sesion para confirmar tu edad.' } });
+    }
+    if (!(await checkDatabaseConnection())) return { data: { adultConfirmed: true } };
+    await prisma.userProfile.upsert({
+      where: { userId },
+      update: { adultConfirmedAt: new Date() },
+      create: { userId, displayName: 'Usuario', locale: 'es', adultConfirmedAt: new Date() },
+    });
+    return { data: { adultConfirmed: true } };
   });
 }

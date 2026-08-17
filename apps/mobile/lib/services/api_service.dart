@@ -62,6 +62,14 @@ class ApiService {
     return response.data['data'] as Map<String, dynamic>;
   }
 
+  Future<void> confirmAdult({required String token}) async {
+    await _dio.post(
+      '/v1/auth/me/adult-confirmation',
+      data: const {'confirmed': true},
+      options: _authOptions(token),
+    );
+  }
+
   Future<List<ChapterComment>> fetchComments(
     String storyId,
     String chapterId, {
@@ -498,7 +506,7 @@ class ApiService {
     required String synopsis,
     required List<String> genres,
     required List<String> tags,
-    required bool isMature,
+    required String ageRating,
     required String authorName,
     required String authorUsername,
     String? coverUrl,
@@ -511,7 +519,7 @@ class ApiService {
         'synopsis': synopsis,
         'genres': genres,
         'tags': tags,
-        'isMature': isMature,
+        'ageRating': ageRating,
         'status': 'published',
         'coverColor': ?coverUrl,
       },
@@ -542,6 +550,7 @@ class ApiService {
     bool removeCover = false,
     List<String>? genres,
     List<String>? tags,
+    String? ageRating,
   }) async {
     final response = await _dio.patch(
       '/v1/me/stories/$storyId',
@@ -549,6 +558,7 @@ class ApiService {
         if (removeCover) 'coverColor': null else 'coverColor': ?coverUrl,
         'genres': ?genres,
         'tags': ?tags,
+        'ageRating': ?ageRating,
       },
       options: _authOptions(token),
     );
@@ -884,10 +894,11 @@ class ApiService {
 
   Future<ChapterDetail> fetchChapterDetail(
     String storyId,
-    String chapterId,
-  ) async {
+    String chapterId, {
+    String? token,
+  }) async {
     try {
-      return await downloadChapterForOffline(storyId, chapterId);
+      return await downloadChapterForOffline(storyId, chapterId, token: token);
     } catch (error) {
       debugPrint('API unavailable, using chapter fallback: $error');
       final prefs = await SharedPreferences.getInstance();
@@ -913,9 +924,13 @@ class ApiService {
 
   Future<ChapterDetail> downloadChapterForOffline(
     String storyId,
-    String chapterId,
-  ) async {
-    final response = await _dio.get('/v1/stories/$storyId/chapters/$chapterId');
+    String chapterId, {
+    String? token,
+  }) async {
+    final response = await _dio.get(
+      '/v1/stories/$storyId/chapters/$chapterId',
+      options: _authOptions(token),
+    );
     final data = response.data['data'] as Map<String, dynamic>;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -925,10 +940,10 @@ class ApiService {
     return ChapterDetail.fromJson(data);
   }
 
-  Future<int> downloadStoryForOffline(String storyId) async {
+  Future<int> downloadStoryForOffline(String storyId, {String? token}) async {
     final story = await fetchStoryDetail(storyId);
     for (final chapter in story.chapters) {
-      await downloadChapterForOffline(story.id, chapter.id);
+      await downloadChapterForOffline(story.id, chapter.id, token: token);
     }
     return story.chapters.length;
   }

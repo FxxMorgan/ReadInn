@@ -10,6 +10,7 @@ export interface GetStoriesParams {
   genreMode?: 'any' | 'all' | undefined;
   tagMode?: 'any' | 'all' | undefined;
   mature?: 'exclude' | 'include' | 'only' | undefined;
+  ageRatings?: string[] | undefined;
   language?: string | undefined;
   minChapters?: number | undefined;
   minRating?: number | undefined;
@@ -28,6 +29,7 @@ export class StoryRepository {
       genreMode: params.genreMode ?? 'any',
       tagMode: params.tagMode ?? 'any',
       mature: params.mature ?? 'exclude',
+      ageRatings: (params.ageRatings ?? []).sort(),
       language: params.language?.trim().toLocaleLowerCase('es') ?? '',
       minChapters: params.minChapters ?? 0,
       minRating: params.minRating ?? 0,
@@ -42,7 +44,7 @@ export class StoryRepository {
     );
   }
 
-  private async getStoriesUncached({ query, genre, genres = [], tags = [], genreMode = 'any', tagMode = 'any', mature = 'exclude', language, minChapters = 0, minRating = 0, sort = 'recent', page = 1, limit = 20 }: GetStoriesParams) {
+  private async getStoriesUncached({ query, genre, genres = [], tags = [], genreMode = 'any', tagMode = 'any', mature = 'exclude', ageRatings = [], language, minChapters = 0, minRating = 0, sort = 'recent', page = 1, limit = 20 }: GetStoriesParams) {
     const isDbConnected = await checkDatabaseConnection();
 
     if (!isDbConnected) {
@@ -53,6 +55,7 @@ export class StoryRepository {
         if (story.status !== 'published') return false;
         if (mature === 'exclude' && story.isMature) return false;
         if (mature === 'only' && !story.isMature) return false;
+        if (ageRatings.length && !ageRatings.includes(story.ageRating ?? (story.isMature ? '18' : 'all'))) return false;
         const storyGenres = (story.genres ?? [story.genre]).map((value) => value.toLocaleLowerCase('es'));
         const matchesGenre = !selectedGenres.length || (genreMode === 'all'
           ? selectedGenres.every((value) => storyGenres.includes(value.toLocaleLowerCase('es')))
@@ -88,6 +91,7 @@ export class StoryRepository {
 
     if (mature === 'exclude') where.isMature = false;
     if (mature === 'only') where.isMature = true;
+    if (ageRatings.length) where.ageRating = { in: ageRatings };
     if (language) where.languageCode = language;
     if (minChapters > 0) where.publishedChapterCount = { gte: minChapters };
 
@@ -181,6 +185,7 @@ export class StoryRepository {
         genres: story.genres.map((item) => item.genre.name),
         tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
         languageCode: story.languageCode,
+        ageRating: story.ageRating as NonNullable<StorySummary['ageRating']>,
         status: story.status as any,
         chapterCount: story.publishedChapterCount,
         isMature: story.isMature,
@@ -356,6 +361,7 @@ export class StoryRepository {
       genres: story.genres.map((item) => item.genre.name),
       tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
       languageCode: story.languageCode,
+      ageRating: story.ageRating,
       status: story.status,
       chapterCount: story.chapters.length,
       isMature: story.isMature,

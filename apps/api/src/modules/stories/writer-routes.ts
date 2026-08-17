@@ -12,6 +12,7 @@ const createStorySchema = z.object({
   genres: z.array(z.string().trim().min(2).max(80)).min(1).max(5).optional(),
   tags: z.array(z.string().trim().min(2).max(100)).max(20).default([]),
   isMature: z.boolean().optional(),
+  ageRating: z.enum(['all', '11', '13', '16', '18']).optional(),
   coverColor: z.string().optional(),
   status: z.enum(['draft', 'published']).optional(),
 }).refine((body) => Boolean(body.genre || body.genres?.length), {
@@ -24,6 +25,7 @@ const updateStorySchema = z.object({
   genres: z.array(z.string().trim().min(2).max(80)).min(1).max(5).optional(),
   tags: z.array(z.string().trim().min(2).max(100)).max(20).optional(),
   isMature: z.boolean().optional(),
+  ageRating: z.enum(['all', '11', '13', '16', '18']).optional(),
   coverColor: z.string().url().nullable().optional(),
 }).refine((body) => Object.values(body).some((value) => value !== undefined), {
   message: 'Incluye al menos un cambio.',
@@ -140,6 +142,7 @@ export function registerWriterRoutes(app: FastifyInstance): void {
       ...(body.genres !== undefined ? { genres: body.genres } : {}),
       ...(body.tags !== undefined ? { tags: body.tags } : {}),
       ...(body.isMature !== undefined ? { isMature: body.isMature } : {}),
+      ...(body.ageRating !== undefined ? { ageRating: body.ageRating } : {}),
       ...(body.coverColor !== undefined ? { coverColor: body.coverColor } : {}),
     });
     if (!story) return reply.status(404).send({ error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' } });
@@ -158,6 +161,7 @@ export function registerWriterRoutes(app: FastifyInstance): void {
       genres: body.genres ?? [body.genre!],
       tags: body.tags,
       ...(body.isMature !== undefined ? { isMature: body.isMature } : {}),
+      ...(body.ageRating !== undefined ? { ageRating: body.ageRating } : {}),
       ...(body.coverColor !== undefined ? { coverColor: body.coverColor } : {}),
       ...(body.status !== undefined ? { status: body.status } : {}),
     });

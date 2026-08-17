@@ -81,6 +81,7 @@ export const STORY_TAG_GROUPS = {
 } as const;
 
 export type StoryTagKind = keyof typeof STORY_TAG_GROUPS;
+export type StoryAgeRating = 'all' | '11' | '13' | '16' | '18';
 
 export interface StoryTagDefinition {
   name: string;
@@ -105,6 +106,35 @@ export function storyTagKind(name: string): StoryTagKind | null {
   return normalizedTagKind.get(normalizeTaxonomyValue(name)) ?? null;
 }
 
+const ageRatingOrder: StoryAgeRating[] = ['all', '11', '13', '16', '18'];
+const tagMinimumAgeEntries: Array<[string, StoryAgeRating]> = [
+  ['Violencia', '13'],
+  ['Lenguaje fuerte', '13'],
+  ['Horror psicológico', '13'],
+  ['Terror sobrenatural', '13'],
+  ['Contenido sensible', '13'],
+  ['Gore', '16'],
+  ['Violencia gráfica', '16'],
+  ['Drogas', '16'],
+  ['Temas maduros', '16'],
+  ['Contenido sexual', '18'],
+];
+const tagMinimumAge = new Map<string, StoryAgeRating>(
+  tagMinimumAgeEntries.map(([tag, rating]) => [normalizeTaxonomyValue(tag), rating]),
+);
+
+export function minimumAgeRatingForTags(tags: string[]): StoryAgeRating {
+  return tags.reduce<StoryAgeRating>((minimum, tag) => {
+    const required = tagMinimumAge.get(normalizeTaxonomyValue(tag)) ?? 'all';
+    return ageRatingOrder.indexOf(required) > ageRatingOrder.indexOf(minimum) ? required : minimum;
+  }, 'all');
+}
+
+export function enforceMinimumAgeRating(requested: StoryAgeRating, tags: string[]): StoryAgeRating {
+  const minimum = minimumAgeRatingForTags(tags);
+  return ageRatingOrder.indexOf(minimum) > ageRatingOrder.indexOf(requested) ? minimum : requested;
+}
+
 export function storyTaxonomyResponse() {
   return {
     genres: [...STORY_GENRES],
@@ -119,6 +149,18 @@ export function storyTaxonomyResponse() {
       { value: 'rating', label: 'Mejor valoradas' },
       { value: 'chapters', label: 'Más capítulos' },
       { value: 'title', label: 'Título' },
+    ],
+    ageRatings: [
+      { value: 'all', label: 'Todo público' },
+      { value: '11', label: '+11' },
+      { value: '13', label: '+13' },
+      { value: '16', label: '+16' },
+      { value: '18', label: '+18' },
+    ],
+    automaticAgeRules: [
+      { tags: ['Violencia', 'Lenguaje fuerte', 'Horror psicológico', 'Terror sobrenatural', 'Contenido sensible'], minimum: '13' },
+      { tags: ['Gore', 'Violencia gráfica', 'Drogas', 'Temas maduros'], minimum: '16' },
+      { tags: ['Contenido sexual'], minimum: '18' },
     ],
   };
 }

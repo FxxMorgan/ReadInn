@@ -6,7 +6,7 @@ import { bearerClaims } from '../../shared/auth.js';
 import { contentCache, storyCacheTags } from '../../shared/content-cache.js';
 import { checkDatabaseConnection, prisma } from '../../shared/db.js';
 import { AppError } from '../../shared/errors.js';
-import { storyTagKind } from './story-taxonomy.js';
+import { enforceMinimumAgeRating, storyTagKind, type StoryAgeRating } from './story-taxonomy.js';
 
 const chapterSchema = z.object({
   title: z.string().trim().min(1).max(150),
@@ -30,6 +30,7 @@ const importedStorySchema = z.object({
   languageCode: z.string().trim().min(2).max(10).regex(/^[a-z]{2,3}(?:-[A-Z]{2})?$/),
   coverUrl: z.string().url().max(2048).optional(),
   isMature: z.boolean().default(false),
+  ageRating: z.enum(['all', '11', '13', '16', '18']).optional(),
   status: z.enum(['draft', 'published']).default('draft'),
   chapters: z.array(chapterSchema).min(1).max(200),
 }).strict();
@@ -186,6 +187,10 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
         const genreNames = [...new Set([input.genre, ...(input.genres ?? [])])];
         const genres = await Promise.all(genreNames.map((name) => resolveGenre(tx, name)));
         const tags = await Promise.all(input.tags.map((name) => resolveTag(tx, name)));
+        const finalAgeRating = enforceMinimumAgeRating(
+          (input.ageRating ?? (input.isMature ? '18' : 'all')) as StoryAgeRating,
+          input.tags,
+        );
         const authorId = await resolveAuthor(tx, input.authorName, adminId);
         const chapters = input.chapters.map((chapter, index) => {
           const paragraphs = paragraphsFrom(chapter.content);
@@ -210,7 +215,8 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
             slug: `${slugify(input.title, 'obra')}-${storySlugSuffix}`,
             synopsis: input.synopsis,
             status: input.status,
-            isMature: input.isMature,
+            isMature: finalAgeRating === '18',
+            ageRating: finalAgeRating,
             ...(input.coverUrl ? { coverUrl: input.coverUrl } : {}),
             attributionName: input.authorName,
             sourceUrl: input.sourceUrl,

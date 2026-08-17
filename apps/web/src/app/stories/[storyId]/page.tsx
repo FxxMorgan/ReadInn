@@ -1,18 +1,54 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { BookDown, BookOpen, Download, Library } from 'lucide-react';
 import { apiFetch, apiUrl } from '@/lib/api';
 import { getOfflineItem, hasOfflineItem, putOfflineItem } from '@/lib/offline-library';
 import type { StoryDetail } from '@/lib/types';
+import { useAuth } from '@/components/auth-provider';
 
 export default function StoryPage({ params }: { params: { storyId: string } }) {
+  const router = useRouter();
+  const { user, refresh } = useAuth();
   const [story, setStory] = useState<StoryDetail | null>(null);
   const [error, setError] = useState('');
   const [offlineSaving, setOfflineSaving] = useState(false);
   const [offlineSaved, setOfflineSaved] = useState(false);
   const storyCacheKey = `readinn-offline-story:${params.storyId}`;
+
+  async function allowAdultAccess(): Promise<boolean> {
+    if ((story?.ageRating ?? (story?.isMature ? '18' : 'all')) !== '18') return true;
+    if (!user || user.id === 'user-guest') {
+      router.push(`/login?next=${encodeURIComponent(`/stories/${params.storyId}`)}`);
+      return false;
+    }
+    if (user.adultConfirmed) return true;
+    if (!window.confirm('Esta obra es +18. Confirma que eres mayor de 18 años para continuar.')) return false;
+    await apiFetch('/v1/auth/me/adult-confirmation', {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    });
+    await refresh();
+    return true;
+  }
+
+  async function openProtected(path: string) {
+    try {
+      if (await allowAdultAccess()) router.push(path);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No pudimos confirmar tu edad.');
+    }
+  }
+
+  async function downloadProtected(path: string) {
+    try {
+      if (await allowAdultAccess()) window.location.assign(apiUrl(path));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No pudimos confirmar tu edad.');
+    }
+  }
   useEffect(() => {
     void hasOfflineItem(storyCacheKey).then(setOfflineSaved);
     void apiFetch<StoryDetail>(`/v1/stories/${params.storyId}`)
@@ -27,6 +63,7 @@ export default function StoryPage({ params }: { params: { storyId: string } }) {
 
   async function saveOffline() {
     if (!story || offlineSaving) return;
+    if (!(await allowAdultAccess())) return;
     setOfflineSaving(true);
     setError('');
     try {
@@ -57,15 +94,15 @@ export default function StoryPage({ params }: { params: { storyId: string } }) {
         {story.coverColor?.startsWith('http') ? <img src={story.coverColor} alt="" /> : <BookOpen size={76} />}
       </div>
       <section>
-        <span className="eyebrow">{story.genre}</span>
+        <span className="eyebrow">{story.genre} · {(story.ageRating ?? (story.isMature ? '18' : 'all')) === 'all' ? 'Todo público' : `+${story.ageRating ?? '18'}`}</span>
         <h1>{story.title}</h1>
         <p className="story-author">por <Link href={`/users/${story.authorUsername}`}>{story.author}</Link></p>
         <p className="story-synopsis">{story.synopsis}</p>
         <div className="story-actions">
           {story.chapters[0] && (
-            <Link className="primary-button" href={`/stories/${story.id}/chapters/${story.chapters[0].id}`}>
+            <button className="primary-button" onClick={() => void openProtected(`/stories/${story.id}/chapters/${story.chapters[0].id}`)}>
               <BookOpen size={18} />Comenzar a leer
-            </Link>
+            </button>
           )}
           <button className="secondary-button" onClick={() => void apiFetch(`/v1/library/${story.id}`, { method: 'POST' })}>
             <Library size={18} />Guardar
@@ -76,8 +113,8 @@ export default function StoryPage({ params }: { params: { storyId: string } }) {
           <details className="story-export-menu">
             <summary className="secondary-button"><Download size={18} />Exportar</summary>
             <div>
-              <a href={apiUrl(`/v1/stories/${story.id}/download?format=epub`)}>EPUB</a>
-              <a href={apiUrl(`/v1/stories/${story.id}/download?format=pdf`)}>PDF</a>
+              <button onClick={() => void downloadProtected(`/v1/stories/${story.id}/download?format=epub`)}>EPUB</button>
+              <button onClick={() => void downloadProtected(`/v1/stories/${story.id}/download?format=pdf`)}>PDF</button>
             </div>
           </details>
         </div>
@@ -85,16 +122,16 @@ export default function StoryPage({ params }: { params: { storyId: string } }) {
           <h2>Capitulos</h2>
           {story.chapters.map((chapter) => (
             <div className="chapter-list-row" key={chapter.id}>
-              <Link href={`/stories/${story.id}/chapters/${chapter.id}`}>
+              <button className="chapter-link-button" onClick={() => void openProtected(`/stories/${story.id}/chapters/${chapter.id}`)}>
                 <span>{chapter.position}</span><strong>{chapter.title}</strong>
-              </Link>
-              <a
+              </button>
+              <button
                 className="chapter-download"
-                href={apiUrl(`/v1/stories/${story.id}/chapters/${chapter.id}/download`)}
+                onClick={() => void downloadProtected(`/v1/stories/${story.id}/chapters/${chapter.id}/download`)}
                 title="Descargar capitulo"
               >
                 <Download size={18} /><span className="sr-only">Descargar {chapter.title}</span>
-              </a>
+              </button>
             </div>
           ))}
         </div>

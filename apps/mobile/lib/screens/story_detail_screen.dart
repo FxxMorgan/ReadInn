@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../providers/story_providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/readinn_widgets.dart';
+import 'auth_dialog.dart';
 import 'report_dialog.dart';
 
 class StoryDetailScreen extends ConsumerWidget {
@@ -18,6 +19,58 @@ class StoryDetailScreen extends ConsumerWidget {
     if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
     if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
     return '$value';
+  }
+
+  Future<bool> _allowAdultAccess(
+    BuildContext context,
+    WidgetRef ref,
+    StoryDetail story,
+  ) async {
+    if (story.ageRating != '18') return true;
+    final auth = ref.read(authProvider);
+    if (!auth.isAuthenticated || auth.user == null) {
+      AuthDialog.show(context);
+      return false;
+    }
+    if (auth.user!.adultConfirmed) return true;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Contenido +18'),
+        content: const Text(
+          'Confirma que eres mayor de 18 años para acceder a esta obra.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Soy mayor de 18'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    final saved = await ref.read(authProvider.notifier).confirmAdult();
+    if (!saved && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No pudimos confirmar tu edad.')),
+      );
+    }
+    return saved;
+  }
+
+  Future<void> _openChapter(
+    BuildContext context,
+    WidgetRef ref,
+    StoryDetail story,
+    String chapterId,
+  ) async {
+    if (await _allowAdultAccess(context, ref, story) && context.mounted) {
+      context.push('/story/${story.id}/read/$chapterId');
+    }
   }
 
   @override
@@ -128,6 +181,12 @@ class StoryDetailScreen extends ConsumerWidget {
                             icon: Icons.auto_awesome_outlined,
                           ),
                           _MetaChip(
+                            label: story.ageRating == 'all'
+                                ? 'Todo público'
+                                : '+${story.ageRating}',
+                            icon: Icons.shield_outlined,
+                          ),
+                          _MetaChip(
                             label: story.status == 'completed'
                                 ? 'Completa'
                                 : 'En curso',
@@ -150,8 +209,11 @@ class StoryDetailScreen extends ConsumerWidget {
                               padding: const EdgeInsets.symmetric(vertical: 15),
                               backgroundColor: ReadInnColors.primaryDeep,
                             ),
-                            onPressed: () => context.push(
-                              '/story/${story.id}/read/${startChapter.id}',
+                            onPressed: () => _openChapter(
+                              context,
+                              ref,
+                              story,
+                              startChapter.id,
                             ),
                             icon: const Icon(Icons.menu_book_rounded),
                             label: Text(
@@ -202,9 +264,19 @@ class StoryDetailScreen extends ConsumerWidget {
                         child: OutlinedButton.icon(
                           onPressed: () async {
                             try {
+                              if (!await _allowAdultAccess(
+                                context,
+                                ref,
+                                story,
+                              )) {
+                                return;
+                              }
                               final count = await ref
                                   .read(apiServiceProvider)
-                                  .downloadStoryForOffline(story.id);
+                                  .downloadStoryForOffline(
+                                    story.id,
+                                    token: ref.read(authProvider).token,
+                                  );
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -360,16 +432,23 @@ class StoryDetailScreen extends ConsumerWidget {
                             title: chapter.title,
                             readTime: '${12 + entry.key * 3} min',
                             seen: seen.contains(chapter.id),
-                            onTap: () => context.push(
-                              '/story/${story.id}/read/${chapter.id}',
-                            ),
+                            onTap: () =>
+                                _openChapter(context, ref, story, chapter.id),
                             onDownload: () async {
                               try {
+                                if (!await _allowAdultAccess(
+                                  context,
+                                  ref,
+                                  story,
+                                )) {
+                                  return;
+                                }
                                 await ref
                                     .read(apiServiceProvider)
                                     .downloadChapterForOffline(
                                       story.id,
                                       chapter.id,
+                                      token: ref.read(authProvider).token,
                                     );
                                 if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(

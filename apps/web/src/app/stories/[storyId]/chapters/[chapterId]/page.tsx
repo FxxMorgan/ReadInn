@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BookDown, ChevronDown, ChevronUp, Download, Eye, MessageCircle, Reply, Send, Settings2, X } from 'lucide-react';
 import { useAuth } from '@/components/auth-provider';
 import { apiFetch, apiUrl } from '@/lib/api';
 import { getOfflineItem, hasOfflineItem, putOfflineItem } from '@/lib/offline-library';
-import type { ChapterComment, ChapterDetail } from '@/lib/types';
+import type { ChapterComment, ChapterDetail, StoryDetail } from '@/lib/types';
 
 type ReaderTheme = 'light' | 'sepia' | 'dark';
 type ReaderFont = 'literary' | 'classic' | 'humanist' | 'accessible' | 'mono';
@@ -37,7 +38,8 @@ function paragraphs(content: unknown): string[] {
 }
 
 export default function ReaderPage({ params }: { params: { storyId: string; chapterId: string } }) {
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, refresh } = useAuth();
   const [chapter, setChapter] = useState<ChapterDetail | null>(null);
   const [comments, setComments] = useState<ChapterComment[]>([]);
   const [activeParagraph, setActiveParagraph] = useState<number | null>(null);
@@ -47,6 +49,7 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
   const [theme, setTheme] = useState<ReaderTheme>('light');
   const [showHiddenComments, setShowHiddenComments] = useState(false);
   const [offlineSaved, setOfflineSaved] = useState(false);
+  const [accessError, setAccessError] = useState('');
 
   const chapterCacheKey = `readinn-offline-chapter:${params.storyId}:${params.chapterId}`;
   const commentsCacheKey = `readinn-offline-comments:${params.storyId}:${params.chapterId}`;
@@ -65,14 +68,37 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
   }
 
   useEffect(() => {
-    void hasOfflineItem(chapterCacheKey).then(setOfflineSaved);
-    void apiFetch<ChapterDetail>(`/v1/stories/${params.storyId}/chapters/${params.chapterId}`)
-      .then(setChapter)
-      .catch(() => {
-        void getOfflineItem<ChapterDetail>(chapterCacheKey).then((cached) => { if (cached) setChapter(cached); });
-      });
-    void loadComments();
-  }, [params.chapterId, params.storyId]);
+    async function loadProtectedChapter() {
+      void hasOfflineItem(chapterCacheKey).then(setOfflineSaved);
+      try {
+        const story = await apiFetch<StoryDetail>(`/v1/stories/${params.storyId}`);
+        if (story.ageRating === '18') {
+          if (!user || user.id === 'user-guest') {
+            router.push(`/login?next=${encodeURIComponent(`/stories/${params.storyId}/chapters/${params.chapterId}`)}`);
+            return;
+          }
+          if (!user.adultConfirmed) {
+            if (!window.confirm('Este capítulo pertenece a una obra +18. Confirma que eres mayor de 18 años para continuar.')) {
+              router.push(`/stories/${params.storyId}`);
+              return;
+            }
+            await apiFetch('/v1/auth/me/adult-confirmation', {
+              method: 'POST',
+              body: JSON.stringify({ confirmed: true }),
+            });
+            await refresh();
+          }
+        }
+        setChapter(await apiFetch<ChapterDetail>(`/v1/stories/${params.storyId}/chapters/${params.chapterId}`));
+        await loadComments();
+      } catch (reason) {
+        const cached = await getOfflineItem<ChapterDetail>(chapterCacheKey);
+        if (cached) setChapter(cached);
+        else setAccessError(reason instanceof Error ? reason.message : 'No pudimos abrir el capítulo.');
+      }
+    }
+    void loadProtectedChapter();
+  }, [params.chapterId, params.storyId, refresh, router, user]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('readinn-reader-settings');
@@ -98,6 +124,8 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
     return parsed.length ? parsed : paragraphs(chapter?.plainText);
   }, [chapter?.content, chapter?.plainText]);
   const colors = themeOptions[theme];
+
+  if (accessError) return <div className="page"><div className="error-state">{accessError}</div></div>;
   const fontFamily = fontOptions.find((option) => option.id === font)?.family ?? fontOptions[0]!.family;
   const generalComments = comments.filter((comment) => comment.paragraphIndex === undefined && !comment.parentCommentId);
 

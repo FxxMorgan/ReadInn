@@ -1,14 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
 import { storyFixtures, chapterFixtures, type StorySummary } from './story-fixtures.js';
-import { storyTagKind } from './story-taxonomy.js';
+import { enforceMinimumAgeRating, storyTagKind, type StoryAgeRating } from './story-taxonomy.js';
 
 const offlineStoriesByAuthor = new Map<string, StorySummary[]>();
 const offlineChapterMeta = new Map<string, { authorId: string; status: string; contentVersion: number; updatedAt: string }>();
 const offlineRevisions = new Map<string, Array<{ id: string; version: number; title: string; content: unknown; plainText: string; reason: string; createdAt: string }>>();
 
-export interface CreateStoryParams { authorId: string; title: string; synopsis: string; genres: string[]; tags: string[]; isMature?: boolean; coverColor?: string; status?: 'draft' | 'published' }
-export interface UpdateStoryParams { authorId: string; storyId: string; title?: string; synopsis?: string; genres?: string[]; tags?: string[]; isMature?: boolean; coverColor?: string | null }
+export interface CreateStoryParams { authorId: string; title: string; synopsis: string; genres: string[]; tags: string[]; isMature?: boolean; ageRating?: 'all' | '11' | '13' | '16' | '18'; coverColor?: string; status?: 'draft' | 'published' }
+export interface UpdateStoryParams { authorId: string; storyId: string; title?: string; synopsis?: string; genres?: string[]; tags?: string[]; isMature?: boolean; ageRating?: 'all' | '11' | '13' | '16' | '18'; coverColor?: string | null }
 export interface CreateChapterParams { storyId: string; title: string; content: unknown; status?: 'draft' | 'published' }
 export interface UpdateChapterParams { chapterId: string; authorId: string; title: string; content: unknown; plainText: string; expectedVersion: number }
 
@@ -26,37 +26,46 @@ export class WriterRepository {
         .filter((story) => includeArchived || story.status !== 'archived');
     }
     const stories = await prisma.story.findMany({ where: includeArchived ? {} : { status: { not: 'archived' } }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, tags: { include: { tag: true } }, _count: { select: { chapters: true } } } });
-    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
+    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,ageRating:story.ageRating as StoryAgeRating,status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
   }
 
   async getUserStories(authorId: string, includeArchived = false): Promise<StorySummary[]> {
     if (!(await checkDatabaseConnection())) return (offlineStoriesByAuthor.get(authorId) ?? []).filter((story) => includeArchived || story.status !== 'archived');
     const stories = await prisma.story.findMany({ where: { authorId, ...(includeArchived ? {} : { status: { not: 'archived' } }) }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, tags: { include: { tag: true } }, _count: { select: { chapters: true } } } });
-    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
+    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,ageRating:story.ageRating as StoryAgeRating,status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
   }
 
   async getUserStory(authorId: string, storyId: string) {
     if (!(await checkDatabaseConnection())) { const summary=(offlineStoriesByAuthor.get(authorId)??[]).find((story)=>story.id===storyId); if(!summary)return null; return {...summary,chapters:chapterFixtures.filter((chapter)=>chapter.storyId===storyId).map((chapter)=>({...chapter,status:offlineChapterMeta.get(chapter.id)?.status??'draft'}))}; }
     const story=await prisma.story.findFirst({where:{id:storyId,authorId},include:{author:{include:{profile:true}},genres:{include:{genre:true}},tags:{include:{tag:true}},chapters:{where:{status:{not:'archived'}},orderBy:{position:'asc'},select:{id:true,storyId:true,position:true,title:true,status:true,wordCount:true,updatedAt:true}}}});if(!story)return null;
-    return {id:story.id,title:story.title,author:story.attributionName??story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??'General',genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,status:story.status,chapterCount:story.chapters.length,isMature:story.isMature,coverColor:story.coverUrl??'#855300',chapters:story.chapters.map((chapter)=>({...chapter,updatedAt:chapter.updatedAt.toISOString()}))};
+    return {id:story.id,title:story.title,author:story.attributionName??story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??'General',genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,ageRating:story.ageRating as StoryAgeRating,status:story.status,chapterCount:story.chapters.length,isMature:story.isMature,coverColor:story.coverUrl??'#855300',chapters:story.chapters.map((chapter)=>({...chapter,updatedAt:chapter.updatedAt.toISOString()}))};
   }
 
   async createStory(params: CreateStoryParams): Promise<StorySummary> {
     const status=params.status??'published';
     const primaryGenre=params.genres[0]??'General';
-    if (!(await checkDatabaseConnection())) { const story:StorySummary={id:`story-${Date.now()}`,title:params.title,author:params.authorId,authorUsername:params.authorId,synopsis:params.synopsis,genre:primaryGenre,genres:params.genres,tags:params.tags.map((name)=>({name,kind:storyTagKind(name)??'theme'})),languageCode:'es',status,chapterCount:0,isMature:params.isMature??false,coverColor:params.coverColor??'#855300'};if(status==='published')storyFixtures.unshift(story);const list=offlineStoriesByAuthor.get(params.authorId)??[];list.unshift(story);offlineStoriesByAuthor.set(params.authorId,list);return story; }
-    const [genres,tags]=await Promise.all([resolveGenres(params.genres),resolveTags(params.tags)]);const data:Prisma.StoryCreateInput={author:{connect:{id:params.authorId}},title:params.title,slug:`${slugify(params.title,'obra')}-${Date.now().toString().slice(-5)}`,synopsis:params.synopsis,status,isMature:params.isMature??false,coverUrl:params.coverColor??'#855300',...(status==='published'?{publishedAt:new Date()}:{}),genres:{create:genres.map((genre)=>({genre:{connect:{id:genre.id}}}))},tags:{create:tags.map((tag)=>({tag:{connect:{id:tag.id}}}))}};
-    const story=await prisma.story.create({data,include:{author:{include:{profile:true}},genres:{include:{genre:true}},tags:{include:{tag:true}}}});return{id:story.id,title:story.title,author:story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??primaryGenre,genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,status:story.status,chapterCount:0,isMature:story.isMature,coverColor:story.coverUrl??'#855300'};
+    const ageRating = enforceMinimumAgeRating(
+      (params.ageRating ?? (params.isMature ? '18' : 'all')) as StoryAgeRating,
+      params.tags,
+    );
+    if (!(await checkDatabaseConnection())) { const story:StorySummary={id:`story-${Date.now()}`,title:params.title,author:params.authorId,authorUsername:params.authorId,synopsis:params.synopsis,genre:primaryGenre,genres:params.genres,tags:params.tags.map((name)=>({name,kind:storyTagKind(name)??'theme'})),languageCode:'es',ageRating,status,chapterCount:0,isMature:ageRating==='18',coverColor:params.coverColor??'#855300'};if(status==='published')storyFixtures.unshift(story);const list=offlineStoriesByAuthor.get(params.authorId)??[];list.unshift(story);offlineStoriesByAuthor.set(params.authorId,list);return story; }
+    const [genres,tags]=await Promise.all([resolveGenres(params.genres),resolveTags(params.tags)]);const data:Prisma.StoryCreateInput={author:{connect:{id:params.authorId}},title:params.title,slug:`${slugify(params.title,'obra')}-${Date.now().toString().slice(-5)}`,synopsis:params.synopsis,status,isMature:ageRating==='18',ageRating,coverUrl:params.coverColor??'#855300',...(status==='published'?{publishedAt:new Date()}:{}),genres:{create:genres.map((genre)=>({genre:{connect:{id:genre.id}}}))},tags:{create:tags.map((tag)=>({tag:{connect:{id:tag.id}}}))}};
+    const story=await prisma.story.create({data,include:{author:{include:{profile:true}},genres:{include:{genre:true}},tags:{include:{tag:true}}}});return{id:story.id,title:story.title,author:story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??primaryGenre,genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,ageRating:story.ageRating as StoryAgeRating,status:story.status,chapterCount:0,isMature:story.isMature,coverColor:story.coverUrl??'#855300'};
   }
 
   async updateStory(params:UpdateStoryParams){
     if(!(await checkDatabaseConnection()))return null;
-    const existing=await prisma.story.findFirst({where:{id:params.storyId,authorId:params.authorId},select:{id:true}});if(!existing)return null;
+    const existing=await prisma.story.findFirst({where:{id:params.storyId,authorId:params.authorId},select:{id:true,ageRating:true,isMature:true,tags:{select:{tag:{select:{name:true}}}}}});if(!existing)return null;
     const [genres,tags]=await Promise.all([params.genres?resolveGenres(params.genres):null,params.tags?resolveTags(params.tags):null]);
+    const requestedAge = params.ageRating ?? (params.isMature ? '18' : undefined);
+    const ageRating = enforceMinimumAgeRating(
+      (requestedAge ?? existing.ageRating ?? (existing.isMature ? '18' : 'all')) as StoryAgeRating,
+      params.tags ?? existing.tags.map((item) => item.tag.name),
+    );
     await prisma.$transaction(async(tx)=>{
       if(genres){await tx.storyGenre.deleteMany({where:{storyId:params.storyId}});await tx.storyGenre.createMany({data:genres.map((genre)=>({storyId:params.storyId,genreId:genre.id}))});}
       if(tags){await tx.storyTag.deleteMany({where:{storyId:params.storyId}});if(tags.length)await tx.storyTag.createMany({data:tags.map((tag)=>({storyId:params.storyId,tagId:tag.id}))});}
-      await tx.story.update({where:{id:params.storyId},data:{...(params.title!==undefined?{title:params.title}:{}),...(params.synopsis!==undefined?{synopsis:params.synopsis}:{}),...(params.isMature!==undefined?{isMature:params.isMature}:{}),...(params.coverColor!==undefined?{coverUrl:params.coverColor}:{})}});
+      await tx.story.update({where:{id:params.storyId},data:{...(params.title!==undefined?{title:params.title}:{}),...(params.synopsis!==undefined?{synopsis:params.synopsis}:{}),...(params.ageRating!==undefined || params.tags!==undefined || params.isMature!==undefined?{ageRating,isMature:ageRating==='18'}:{}),...(params.coverColor!==undefined?{coverUrl:params.coverColor}:{})}});
     });
     return this.getUserStory(params.authorId,params.storyId);
   }

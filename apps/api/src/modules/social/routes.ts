@@ -73,6 +73,7 @@ function mapStory(story: {
   genres: Array<{ genre: { name: string } }>;
   tags: Array<{ tag: { name: string; kind: string } }>;
   languageCode: string;
+  ageRating: string;
 }) {
   return {
     id: story.id,
@@ -84,6 +85,7 @@ function mapStory(story: {
     genres: story.genres.map((item) => item.genre.name),
     tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
     languageCode: story.languageCode,
+    ageRating: story.ageRating,
     status: story.status,
     chapterCount: story.publishedChapterCount,
     isMature: story.isMature,

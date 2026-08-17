@@ -52,7 +52,7 @@ curl -sS https://api.cypher.cl/v1/admin/stories/bulk-import \
       "license": "Public Domain",
       "languageCode": "en",
       "coverUrl": "https://example.org/covers/1342.jpg",
-      "isMature": false,
+      "ageRating": "all",
       "status": "draft",
       "chapters": [
         {
@@ -70,6 +70,10 @@ curl -sS https://api.cypher.cl/v1/admin/stories/bulk-import \
 ```
 
 Importa primero como `draft`. Revisa portada, capitulos, atribucion y licencia en el estudio antes de publicar la obra.
+
+`ageRating` acepta `all`, `11`, `13`, `16` o `18`. Las etiquetas de contenido
+pueden elevar automaticamente ese valor minimo; por ejemplo, `Gore` se guarda
+como minimo `16`. `isMature` sigue aceptado solo por compatibilidad.
 
 ## Idempotencia y reemplazo
 

@@ -13,6 +13,7 @@ class UserAccount {
   final String bio;
   final String? avatarUrl;
   final bool isAdmin;
+  final bool adultConfirmed;
 
   const UserAccount({
     required this.id,
@@ -22,6 +23,7 @@ class UserAccount {
     this.bio = '',
     this.avatarUrl,
     this.isAdmin = false,
+    this.adultConfirmed = false,
   });
 
   factory UserAccount.fromJson(Map<String, dynamic> json) => UserAccount(
@@ -35,6 +37,7 @@ class UserAccount {
     bio: json['bio'] as String? ?? '',
     avatarUrl: json['avatarUrl'] as String?,
     isAdmin: json['isAdmin'] as bool? ?? false,
+    adultConfirmed: json['adultConfirmed'] as bool? ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -45,6 +48,7 @@ class UserAccount {
     'bio': bio,
     'avatarUrl': avatarUrl,
     'isAdmin': isAdmin,
+    'adultConfirmed': adultConfirmed,
   };
 }
 
@@ -188,6 +192,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
         bio: data['bio'] as String? ?? bio,
         avatarUrl: data['avatarUrl'] as String? ?? avatarUrl,
         isAdmin: current.isAdmin,
+        adultConfirmed: current.adultConfirmed,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_userKey, jsonEncode(updated.toJson()));
+      state = AuthState(isAuthenticated: true, user: updated, token: token);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> confirmAdult() async {
+    final current = state.user;
+    final token = state.token;
+    if (current == null || token == null) return false;
+    try {
+      await _apiService.confirmAdult(token: token);
+      final updated = UserAccount(
+        id: current.id,
+        email: current.email,
+        username: current.username,
+        displayName: current.displayName,
+        bio: current.bio,
+        avatarUrl: current.avatarUrl,
+        isAdmin: current.isAdmin,
+        adultConfirmed: true,
       );
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_userKey, jsonEncode(updated.toJson()));

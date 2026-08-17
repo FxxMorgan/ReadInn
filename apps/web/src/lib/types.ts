@@ -9,6 +9,7 @@ export interface UserAccount {
   bio?: string;
   avatarUrl?: string;
   isAdmin?: boolean;
+  adultConfirmed?: boolean;
 }
 
 export interface ChapterSummary {
@@ -36,6 +37,7 @@ export interface StorySummary {
   status: StoryStatus;
   chapterCount: number;
   isMature: boolean;
+  ageRating?: 'all' | '11' | '13' | '16' | '18';
   coverColor: string;
   updatedAt?: string;
   averageRating?: number;
@@ -51,6 +53,7 @@ export interface StoryTaxonomy {
   genres: string[];
   tagGroups: Array<{ kind: StoryTag['kind']; label: string; tags: string[] }>;
   sortOptions: Array<{ value: 'recent' | 'popular' | 'rating' | 'chapters' | 'title'; label: string }>;
+  ageRatings: Array<{ value: 'all' | '11' | '13' | '16' | '18'; label: string }>;
 }
 
 export interface StoryDetail extends StorySummary {

@@ -101,14 +101,14 @@ button { cursor: pointer; }
 .story-export-menu summary::-webkit-details-marker { display:none; }
 .story-export-menu>div { position:absolute;left:0;top:44px;z-index:20;display:grid;min-width:130px;padding:5px;background:var(--surface);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow); }
 .story-export-menu:not([open])>div { display:none; }
-.story-export-menu a { padding:9px 11px;border-radius:4px;font-size:13px;font-weight:750; }
-.story-export-menu a:hover { background:#faeee8;color:var(--terracotta-deep); }
+.story-export-menu button { padding:9px 11px;border:0;background:transparent;border-radius:4px;font-size:13px;font-weight:750;text-align:left;cursor:pointer; }
+.story-export-menu button:hover { background:#faeee8;color:var(--terracotta-deep); }
 .chapter-list { margin-top:40px;border-top:1px solid var(--line);padding-top:25px; }
 .chapter-list h2,.chapter-manager h2 { font-family:Georgia,serif; }
 .chapter-list-row { display:grid;grid-template-columns:1fr auto;align-items:center;border-bottom:1px solid var(--line); }
-.chapter-list-row>a:first-child { display:flex;align-items:center;gap:18px;padding:16px 4px;min-width:0; }
-.chapter-list-row>a:first-child span { width:30px;height:30px;border-radius:50%;background:#faeee8;display:grid;place-items:center;color:var(--terracotta-deep);font-weight:800;flex:0 0 auto; }
-.chapter-download { width:40px;height:40px;display:grid;place-items:center;border-radius:6px;color:var(--muted); }
+.chapter-link-button { display:flex;align-items:center;gap:18px;padding:16px 4px;min-width:0;border:0;background:transparent;text-align:left;color:inherit;cursor:pointer; }
+.chapter-link-button span { width:30px;height:30px;border-radius:50%;background:#faeee8;display:grid;place-items:center;color:var(--terracotta-deep);font-weight:800;flex:0 0 auto; }
+.chapter-download { width:40px;height:40px;display:grid;place-items:center;border:0;background:transparent;border-radius:6px;color:var(--muted);cursor:pointer; }
 .chapter-download:hover { background:#faeee8;color:var(--terracotta-deep); }
 .story-author a { color:var(--terracotta-deep);font-weight:750; }
 .public-reader { min-height:100vh;transition:background-color .18s ease,color .18s ease; }
@@ -226,6 +226,12 @@ button { cursor: pointer; }
 .manage-cover { width:92px;aspect-ratio:2/3;border:1px solid var(--line);border-radius:6px;background:#f8f2ec;color:var(--terracotta-deep);overflow:hidden;display:grid;place-items:center;padding:0; }
 .manage-cover img { width:100%;height:100%;object-fit:cover; }
 .cover-edit-command { border:0;background:transparent;color:var(--terracotta-deep);display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;padding:6px 0; }
+.story-taxonomy-editor { border-block:1px solid var(--line);padding:22px 0;margin:0 0 28px;display:grid;gap:16px; }
+.story-taxonomy-head { display:flex;align-items:center;justify-content:space-between;gap:18px; }
+.story-taxonomy-head>div { display:flex;align-items:flex-start;gap:10px; }
+.story-taxonomy-head h2 { margin:0;font:700 24px Georgia,serif; }
+.story-taxonomy-head p { margin:4px 0 0;color:var(--muted);font-size:12px; }
+.story-taxonomy-head .primary-button { min-height:40px;padding:0 13px;display:inline-flex;align-items:center;gap:6px; }
 .chapter-manager-head { display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--line); }.chapter-manager-head h2{margin:0}.chapter-manager-head span{font-size:12px;color:var(--muted)}
 .chapter-manage-row { display:grid;grid-template-columns:1fr auto;align-items:center;padding:0 12px 0 22px;border-bottom:1px solid var(--line); }.chapter-manage-row:last-child{border:0}.chapter-manage-main{display:grid;grid-template-columns:42px 1fr auto;gap:13px;align-items:center;padding:16px 10px 16px 0}.chapter-position{width:34px;height:34px;border-radius:50%;background:#faeee8;display:grid;place-items:center;font-weight:850;color:var(--terracotta-deep)}.chapter-manage-main div{display:grid;gap:4px}.chapter-manage-main small{color:var(--muted)}.chapter-delete{width:40px;height:40px;border:0;background:transparent;color:#9c2e20;border-radius:6px;display:grid;place-items:center}.chapter-delete:hover{background:#fff0ed}
 .public-profile-page { display:grid;gap:54px; }

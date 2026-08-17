@@ -13,6 +13,7 @@ class StorySummary {
   final String status;
   final int chapterCount;
   final bool isMature;
+  final String ageRating;
   final String coverColor;
   final double averageRating;
   final int ratingCount;
@@ -30,6 +31,7 @@ class StorySummary {
     required this.status,
     required this.chapterCount,
     required this.isMature,
+    this.ageRating = 'all',
     required this.coverColor,
     this.averageRating = 0,
     this.ratingCount = 0,
@@ -53,6 +55,9 @@ class StorySummary {
     status: json['status'] as String? ?? 'published',
     chapterCount: (json['chapterCount'] as num?)?.toInt() ?? 0,
     isMature: json['isMature'] as bool? ?? false,
+    ageRating:
+        json['ageRating'] as String? ??
+        ((json['isMature'] as bool? ?? false) ? '18' : 'all'),
     coverColor: json['coverColor'] as String? ?? '#4F46E5',
     averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0,
     ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
@@ -96,6 +101,7 @@ class StoryDetail extends StorySummary {
     required super.status,
     required super.chapterCount,
     required super.isMature,
+    super.ageRating,
     required super.coverColor,
     super.averageRating,
     super.ratingCount,
@@ -126,6 +132,9 @@ class StoryDetail extends StorySummary {
       status: json['status'] as String? ?? 'published',
       chapterCount: (json['chapterCount'] as num?)?.toInt() ?? chapters.length,
       isMature: json['isMature'] as bool? ?? false,
+      ageRating:
+          json['ageRating'] as String? ??
+          ((json['isMature'] as bool? ?? false) ? '18' : 'all'),
       coverColor: json['coverColor'] as String? ?? '#4F46E5',
       averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0,
       ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
@@ -170,11 +179,13 @@ class StoryTaxonomy {
   final List<String> genres;
   final List<StoryTagGroup> tagGroups;
   final List<Map<String, String>> sortOptions;
+  final List<Map<String, String>> ageRatings;
 
   const StoryTaxonomy({
     required this.genres,
     required this.tagGroups,
     required this.sortOptions,
+    required this.ageRatings,
   });
 
   factory StoryTaxonomy.fromJson(Map<String, dynamic> json) => StoryTaxonomy(
@@ -186,6 +197,12 @@ class StoryTaxonomy {
         .map(StoryTagGroup.fromJson)
         .toList(),
     sortOptions: (json['sortOptions'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (item) => item.map((key, value) => MapEntry(key, value.toString())),
+        )
+        .toList(),
+    ageRatings: (json['ageRatings'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(
           (item) => item.map((key, value) => MapEntry(key, value.toString())),

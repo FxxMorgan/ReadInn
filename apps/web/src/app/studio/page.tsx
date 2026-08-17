@@ -21,6 +21,7 @@ export default function StudioPage() {
   const [taxonomy, setTaxonomy] = useState<StoryTaxonomy | null>(null);
   const [selectedGenres, setSelectedGenres] = useState<string[]>(['Misterio']);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [ageRating, setAgeRating] = useState<'all' | '11' | '13' | '16' | '18'>('all');
   const coverInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -41,6 +42,7 @@ export default function StudioPage() {
     setCreateError('');
     setSelectedGenres(['Misterio']);
     setSelectedTags([]);
+    setAgeRating('all');
   }
 
   function selectCover(file?: File) {
@@ -91,7 +93,7 @@ export default function StudioPage() {
       const story = await apiFetch<StorySummary>('/v1/stories', {
         method: 'POST',
         body: JSON.stringify({
-          title: data.get('title'), synopsis: data.get('synopsis'), genres: selectedGenres, tags: selectedTags,
+          title: data.get('title'), synopsis: data.get('synopsis'), genres: selectedGenres, tags: selectedTags, ageRating,
           isMature: data.get('isMature') === 'on', status: 'draft', coverColor,
         }),
       });
@@ -146,6 +148,7 @@ export default function StudioPage() {
             <div className="field"><label>Sinopsis</label><textarea name="synopsis" required minLength={10} /></div>
             <div className="field"><label>Generos (hasta 5)</label><div className="filter-chips">{taxonomy?.genres.map((genre) => <button type="button" key={genre} className={selectedGenres.includes(genre) ? 'active' : ''} onClick={() => setSelectedGenres((current) => current.includes(genre) ? current.filter((item) => item !== genre) : current.length < 5 ? [...current, genre] : current)}>{genre}</button>)}</div></div>
             {taxonomy?.tagGroups.map((group) => <details className="tag-filter-group" key={group.kind}><summary>{group.label}</summary><div className="filter-chips">{group.tags.map((tag) => <button type="button" key={tag} className={selectedTags.includes(tag) ? 'active' : ''} onClick={() => setSelectedTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : current.length < 20 ? [...current, tag] : current)}>{tag}</button>)}</div></details>)}
+            <div className="field"><label>Clasificacion por edad</label><select value={ageRating} onChange={(event) => setAgeRating(event.target.value as typeof ageRating)}>{taxonomy?.ageRatings.map((rating) => <option key={rating.value} value={rating.value}>{rating.label}</option>)}</select></div>
             <div className="cover-picker-row">
               <button type="button" className="cover-preview" onClick={() => coverInput.current?.click()} aria-label="Elegir imagen de portada">
                 {coverPreview ? <img src={coverPreview} alt="Vista previa de la portada" /> : <><ImagePlus size={30} /><span>Agregar portada</span></>}

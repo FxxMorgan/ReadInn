@@ -13,6 +13,7 @@ export type StorySummary = {
   status: StoryStatus;
   chapterCount: number;
   isMature: boolean;
+  ageRating?: 'all' | '11' | '13' | '16' | '18';
   coverColor: string;
   averageRating?: number;
   ratingCount?: number;

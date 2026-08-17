@@ -151,7 +151,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       try {
         await ref
             .read(apiServiceProvider)
-            .downloadChapterForOffline(widget.storyId, widget.chapterId);
+            .downloadChapterForOffline(
+              widget.storyId,
+              widget.chapterId,
+              token: ref.read(authProvider).token,
+            );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

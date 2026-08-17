@@ -7,8 +7,15 @@ hasta 5 generos y 20 etiquetas.
 - `type`: estructura o formato narrativo, por ejemplo Isekai, LitRPG o Regresion.
 - `setting`: ambientacion, por ejemplo Academia, Reino o Cyberpunk.
 - `tone`: tono y desenlace, por ejemplo Oscuro, Feel Good o Final abierto.
-- `content`: advertencias, por ejemplo Gore, +18 o Contenido sensible.
+- `content`: advertencias, por ejemplo Gore, Violencia grafica o Contenido sensible.
 - `theme`: temas, tropos, protagonistas y recursos narrativos.
+- `ageRating`: clasificacion por edad independiente: `all`, `11`, `13`, `16` o `18`.
+
+La clasificacion por edad no se deduce de una sola etiqueta, pero ciertas
+advertencias establecen un minimo automatico. Por ejemplo, `Gore` exige al
+menos `+16`, `Contenido sexual` exige `+18` y una etiqueta romantica por si
+sola no eleva `Todo publico`. El autor siempre puede escoger una clasificacion
+superior al minimo calculado.
 
 ## Obtener opciones
 
@@ -16,7 +23,8 @@ hasta 5 generos y 20 etiquetas.
 GET /v1/stories/filters
 ```
 
-La respuesta contiene `genres`, `tagGroups` y `sortOptions`. Los clientes deben
+La respuesta contiene `genres`, `tagGroups`, `ageRatings`, `automaticAgeRules`
+y `sortOptions`. Los clientes deben
 consumir este endpoint en lugar de mantener listas independientes.
 
 ## Buscar obras
@@ -60,7 +68,7 @@ se deben mostrar fixtures como tendencias cuando el dispositivo esta offline.
   "synopsis": "Una exploradora despierta en un reino que olvido su propia magia.",
   "genres": ["Fantasia", "Aventura", "Romance"],
   "tags": ["Isekai", "Magia", "Reino", "Oscuro"],
-  "isMature": false,
+  "ageRating": "13",
   "status": "draft"
 }
 ```
@@ -75,8 +83,29 @@ Content-Type: application/json
 {
   "genres": ["Fantasia", "Aventura"],
   "tags": ["Magia", "Academia"],
+  "ageRating": "13",
   "coverColor": "https://cdn.example.com/cover.jpg"
 }
 ```
 
 Enviar `coverColor: null` elimina la portada actual.
+
+El campo antiguo `isMature` se mantiene para clientes anteriores. En nuevos
+clientes debe usarse `ageRating`; una obra `+18` mantiene `isMature=true` por
+compatibilidad.
+
+## Confirmacion para contenido +18
+
+Antes de abrir por primera vez una obra `+18`, un usuario autenticado confirma
+su mayoria de edad mediante:
+
+```http
+POST /v1/auth/me/adult-confirmation
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "confirmed": true }
+```
+
+La confirmacion queda vinculada al perfil. El backend tambien protege el acceso
+directo a capitulos y descargas `+18`.
