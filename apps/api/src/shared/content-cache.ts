@@ -29,7 +29,12 @@ class ContentCache {
     this.memory.clear();
   }
 
-  async remember<T>(key: string, tags: string[], loader: () => Promise<T>): Promise<T> {
+  async remember<T>(
+    key: string,
+    tags: string[],
+    loader: () => Promise<T>,
+    ttlSeconds = this.options.ttlSeconds,
+  ): Promise<T> {
     if (!this.options.enabled) return loader();
     const now = Date.now();
     const memoryRecord = this.memory.get(key) as CacheRecord<T> | undefined;
@@ -45,7 +50,7 @@ class ContentCache {
     const record: CacheRecord<T> = {
       key,
       tags: [...new Set(tags)],
-      expiresAt: now + this.options.ttlSeconds * 1000,
+      expiresAt: now + ttlSeconds * 1000,
       value,
     };
     this.memory.set(key, record);

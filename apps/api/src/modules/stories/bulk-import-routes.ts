@@ -6,6 +6,7 @@ import { bearerClaims } from '../../shared/auth.js';
 import { contentCache, storyCacheTags } from '../../shared/content-cache.js';
 import { checkDatabaseConnection, prisma } from '../../shared/db.js';
 import { AppError } from '../../shared/errors.js';
+import { storyTagKind } from './story-taxonomy.js';
 
 const chapterSchema = z.object({
   title: z.string().trim().min(1).max(150),
@@ -22,6 +23,8 @@ const importedStorySchema = z.object({
   authorName: z.string().trim().min(2).max(150),
   synopsis: z.string().trim().min(10).max(3000),
   genre: z.string().trim().min(2).max(80),
+  genres: z.array(z.string().trim().min(2).max(80)).max(5).optional(),
+  tags: z.array(z.string().trim().min(2).max(100)).max(20).default([]),
   sourceUrl: z.string().url().max(2048),
   license: z.string().trim().min(2).max(120),
   languageCode: z.string().trim().min(2).max(10).regex(/^[a-z]{2,3}(?:-[A-Z]{2})?$/),
@@ -105,6 +108,16 @@ async function resolveGenre(tx: Prisma.TransactionClient, name: string) {
   });
 }
 
+async function resolveTag(tx: Prisma.TransactionClient, name: string) {
+  const kind = storyTagKind(name);
+  if (!kind) throw new AppError('INVALID_TAG', `La etiqueta no esta en la taxonomia: ${name}`, 422);
+  const existing = await tx.tag.findFirst({ where: { name: { equals: name, mode: 'insensitive' } } });
+  if (existing) return existing;
+  const slug = slugify(name, 'tag');
+  const collision = await tx.tag.findUnique({ where: { slug } });
+  return tx.tag.create({ data: { name, kind, slug: collision ? `${slug}-${crypto.randomBytes(4).toString('hex')}` : slug } });
+}
+
 async function resolveAuthor(tx: Prisma.TransactionClient, authorName: string, fallbackAdminId: string): Promise<string> {
   if (!authorName || !authorName.trim()) return fallbackAdminId;
   const displayName = authorName.trim();
@@ -131,7 +144,6 @@ async function resolveAuthor(tx: Prisma.TransactionClient, authorName: string, f
         create: {
           displayName,
           bio: `Perfil de autor/grupo para ${displayName} en ReadInn.`,
-          avatarUrl: 'https://ichijoutranslations.com/apple-touch-icon.png',
           locale: 'es',
         },
       },
@@ -171,7 +183,9 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
         }
         if (existing) await tx.story.delete({ where: { id: existing.id } });
 
-        const genre = await resolveGenre(tx, input.genre);
+        const genreNames = [...new Set([input.genre, ...(input.genres ?? [])])];
+        const genres = await Promise.all(genreNames.map((name) => resolveGenre(tx, name)));
+        const tags = await Promise.all(input.tags.map((name) => resolveTag(tx, name)));
         const authorId = await resolveAuthor(tx, input.authorName, adminId);
         const chapters = input.chapters.map((chapter, index) => {
           const paragraphs = paragraphsFrom(chapter.content);
@@ -206,7 +220,8 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
             wordCount: publishedChapters.reduce((sum, chapter) => sum + chapter.wordCount, 0),
             publishedChapterCount: publishedChapters.length,
             ...(input.status === 'published' ? { publishedAt: new Date() } : {}),
-            genres: { create: { genre: { connect: { id: genre.id } } } },
+            genres: { create: genres.map((genre) => ({ genre: { connect: { id: genre.id } } })) },
+            tags: { create: tags.map((tag) => ({ tag: { connect: { id: tag.id } } })) },
             chapters: { create: chapters },
           },
           select: { id: true },

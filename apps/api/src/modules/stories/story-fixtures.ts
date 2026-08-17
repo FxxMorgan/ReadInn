@@ -7,6 +7,9 @@ export type StorySummary = {
   authorUsername: string;
   synopsis: string;
   genre: string;
+  genres?: string[];
+  tags?: Array<{ name: string; kind: string }>;
+  languageCode?: string;
   status: StoryStatus;
   chapterCount: number;
   isMature: boolean;
@@ -15,6 +18,7 @@ export type StorySummary = {
   ratingCount?: number;
   sourceUrl?: string;
   sourceLicense?: string;
+  updatedAt?: string;
 };
 
 export type Chapter = {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/story.dart';
 import '../providers/auth_provider.dart';
@@ -34,6 +36,67 @@ class ManageStoryScreen extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No pudimos publicar la obra.')),
       );
+    }
+  }
+
+  Future<void> _changeCover(
+    BuildContext context,
+    WidgetRef ref,
+    StoryDetail story,
+  ) async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1800,
+      imageQuality: 90,
+    );
+    if (picked == null || !context.mounted) return;
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      aspectRatio: const CropAspectRatio(ratioX: 2, ratioY: 3),
+      maxWidth: 1200,
+      maxHeight: 1800,
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 90,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Recortar portada',
+          toolbarColor: ReadInnColors.primaryDeep,
+          toolbarWidgetColor: Colors.white,
+          lockAspectRatio: true,
+        ),
+        IOSUiSettings(title: 'Recortar portada', aspectRatioLockEnabled: true),
+      ],
+    );
+    if (cropped == null || !context.mounted) return;
+    final token = ref.read(authProvider).token;
+    if (token == null) return;
+    try {
+      final bytes = await cropped.readAsBytes();
+      final url = await ref
+          .read(apiServiceProvider)
+          .uploadMedia(
+            bytes: bytes,
+            filename: 'cover-${story.id}.jpg',
+            mimeType: 'image/jpeg',
+            purpose: 'cover',
+            token: token,
+          );
+      await ref
+          .read(apiServiceProvider)
+          .updateStory(story.id, token: token, coverUrl: url);
+      ref.invalidate(writerStoryDetailProvider(story.id));
+      ref.invalidate(writerStoriesProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Portada actualizada.')));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No pudimos actualizar la portada.')),
+        );
+      }
     }
   }
 
@@ -203,6 +266,35 @@ class ManageStoryScreen extends ConsumerWidget {
         data: (data) => ListView(
           padding: const EdgeInsets.fromLTRB(16, 18, 16, 112),
           children: [
+            Row(
+              children: [
+                Container(
+                  width: 76,
+                  height: 114,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: ReadInnColors.softOrange,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: data.coverColor.startsWith('http')
+                      ? Image.network(data.coverColor, fit: BoxFit.cover)
+                      : const Icon(Icons.menu_book_outlined, size: 30),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'La portada se muestra con formato vertical 2:3.',
+                    style: const TextStyle(color: ReadInnColors.muted),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Cambiar portada',
+                  onPressed: () => _changeCover(context, ref, data),
+                  icon: const Icon(Icons.photo_camera_outlined),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
             Text(
               data.title,
               style: Theme.of(
@@ -211,7 +303,7 @@ class ManageStoryScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '${data.genre} · ${data.chapters.length} capítulos',
+              '${data.genres.isNotEmpty ? data.genres.join(' · ') : data.genre} · ${data.chapters.length} capítulos',
               style: const TextStyle(color: ReadInnColors.muted),
             ),
             if (data.status == 'draft') ...[

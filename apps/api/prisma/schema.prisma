@@ -30,6 +30,14 @@ enum ChapterStatus {
   archived
 }
 
+enum StoryTagKind {
+  type
+  setting
+  tone
+  content
+  theme
+}
+
 model User {
   id                 String        @id @default(uuid()) @db.Uuid
   email              String        @unique
@@ -93,6 +101,7 @@ model Story {
   author               User         @relation(fields: [authorId], references: [id])
   chapters             Chapter[]
   genres               StoryGenre[]
+  tags                 StoryTag[]
   ratings              StoryRating[]
   readingEvents        ReadingEvent[]
   comments             ChapterComment[]
@@ -121,6 +130,30 @@ model StoryGenre {
 
   @@id([storyId, genreId])
   @@map("story_genres")
+}
+
+model Tag {
+  id        String       @id @default(uuid()) @db.Uuid
+  name      String       @unique @db.VarChar(100)
+  slug      String       @unique @db.VarChar(110)
+  kind      StoryTagKind
+  isActive  Boolean      @default(true) @map("is_active")
+  sortOrder Int          @default(0) @map("sort_order")
+  stories   StoryTag[]
+
+  @@index([kind, sortOrder])
+  @@map("tags")
+}
+
+model StoryTag {
+  storyId String @map("story_id") @db.Uuid
+  tagId   String @map("tag_id") @db.Uuid
+  story   Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, tagId])
+  @@index([tagId, storyId])
+  @@map("story_tags")
 }
 
 model Chapter {

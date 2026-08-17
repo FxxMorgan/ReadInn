@@ -6,7 +6,7 @@ import { ArchiveRestore, BookOpen, FilePlus2, ImagePlus, PenLine, Plus, Trash2 }
 import { useAuth } from '@/components/auth-provider';
 import { CoverCropDialog } from '@/components/cover-crop-dialog';
 import { apiFetch, apiUrl } from '@/lib/api';
-import type { StorySummary } from '@/lib/types';
+import type { StorySummary, StoryTaxonomy } from '@/lib/types';
 
 export default function StudioPage() {
   const { user, loading } = useAuth();
@@ -18,6 +18,9 @@ export default function StudioPage() {
   const [coverCrop, setCoverCrop] = useState<{ source: string; filename: string } | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [taxonomy, setTaxonomy] = useState<StoryTaxonomy | null>(null);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(['Misterio']);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const coverInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -26,6 +29,7 @@ export default function StudioPage() {
   }, [filter]);
 
   useEffect(() => { if (user) void load(); }, [load, user]);
+  useEffect(() => { void apiFetch<StoryTaxonomy>('/v1/stories/filters').then(setTaxonomy).catch(() => undefined); }, []);
   useEffect(() => () => { if (coverPreview) URL.revokeObjectURL(coverPreview); }, [coverPreview]);
 
   function closeCreate() {
@@ -35,6 +39,8 @@ export default function StudioPage() {
     setCoverPreview(null);
     setCoverCrop(null);
     setCreateError('');
+    setSelectedGenres(['Misterio']);
+    setSelectedTags([]);
   }
 
   function selectCover(file?: File) {
@@ -79,12 +85,13 @@ export default function StudioPage() {
     setCreating(true);
     setCreateError('');
     try {
+      if (!selectedGenres.length) throw new Error('Selecciona al menos un genero.');
       const data = new FormData(event.currentTarget);
       const coverColor = coverFile ? await uploadCover(coverFile) : undefined;
       const story = await apiFetch<StorySummary>('/v1/stories', {
         method: 'POST',
         body: JSON.stringify({
-          title: data.get('title'), synopsis: data.get('synopsis'), genre: data.get('genre'),
+          title: data.get('title'), synopsis: data.get('synopsis'), genres: selectedGenres, tags: selectedTags,
           isMature: data.get('isMature') === 'on', status: 'draft', coverColor,
         }),
       });
@@ -137,7 +144,8 @@ export default function StudioPage() {
             <h2>Nueva obra</h2>
             <div className="field"><label>Titulo</label><input name="title" required minLength={2} /></div>
             <div className="field"><label>Sinopsis</label><textarea name="synopsis" required minLength={10} /></div>
-            <div className="field"><label>Genero</label><select name="genre"><option>Misterio</option><option>Fantasia</option><option>Romance</option><option>Ciencia ficcion</option><option>Terror</option><option>Drama</option></select></div>
+            <div className="field"><label>Generos (hasta 5)</label><div className="filter-chips">{taxonomy?.genres.map((genre) => <button type="button" key={genre} className={selectedGenres.includes(genre) ? 'active' : ''} onClick={() => setSelectedGenres((current) => current.includes(genre) ? current.filter((item) => item !== genre) : current.length < 5 ? [...current, genre] : current)}>{genre}</button>)}</div></div>
+            {taxonomy?.tagGroups.map((group) => <details className="tag-filter-group" key={group.kind}><summary>{group.label}</summary><div className="filter-chips">{group.tags.map((tag) => <button type="button" key={tag} className={selectedTags.includes(tag) ? 'active' : ''} onClick={() => setSelectedTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : current.length < 20 ? [...current, tag] : current)}>{tag}</button>)}</div></details>)}
             <div className="cover-picker-row">
               <button type="button" className="cover-preview" onClick={() => coverInput.current?.click()} aria-label="Elegir imagen de portada">
                 {coverPreview ? <img src={coverPreview} alt="Vista previa de la portada" /> : <><ImagePlus size={30} /><span>Agregar portada</span></>}

@@ -71,6 +71,8 @@ function mapStory(story: {
   publishedChapterCount: number;
   author: { username: string; profile: { displayName: string } | null };
   genres: Array<{ genre: { name: string } }>;
+  tags: Array<{ tag: { name: string; kind: string } }>;
+  languageCode: string;
 }) {
   return {
     id: story.id,
@@ -79,6 +81,9 @@ function mapStory(story: {
     authorUsername: story.author.username,
     synopsis: story.synopsis,
     genre: story.genres[0]?.genre.name ?? 'General',
+    genres: story.genres.map((item) => item.genre.name),
+    tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
+    languageCode: story.languageCode,
     status: story.status,
     chapterCount: story.publishedChapterCount,
     isMature: story.isMature,
@@ -111,6 +116,7 @@ export function registerSocialRoutes(app: FastifyInstance): void {
           include: {
             author: { include: { profile: true } },
             genres: { include: { genre: true } },
+            tags: { include: { tag: true } },
           },
         },
         _count: { select: { followers: true, following: true } },

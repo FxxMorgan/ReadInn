@@ -26,16 +26,6 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     super.dispose();
   }
 
-  static const categories = [
-    'Todos',
-    'Misterio',
-    'Fantasía',
-    'Ciencia ficción',
-    'Romance',
-    'Terror',
-    'Drama',
-  ];
-
   Color _coverColor(String hex) {
     try {
       return Color(int.parse('FF${hex.replaceAll('#', '')}', radix: 16));
@@ -44,11 +34,182 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
     }
   }
 
+  Future<void> _openFilters() async {
+    final taxonomy = await ref.read(storyTaxonomyProvider.future);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Consumer(
+        builder: (context, ref, _) {
+          final selectedGenres = ref.watch(selectedGenresProvider);
+          final selectedTags = ref.watch(selectedTagsProvider);
+          final sort = ref.watch(storySortProvider);
+          final mature = ref.watch(matureFilterProvider);
+          final minChapters = ref.watch(minChaptersProvider);
+          final minRating = ref.watch(minRatingProvider);
+          void toggleGenre(String value) {
+            final next = [...selectedGenres];
+            next.contains(value) ? next.remove(value) : next.add(value);
+            ref.read(selectedGenresProvider.notifier).state = next;
+          }
+
+          void toggleTag(String value) {
+            final next = [...selectedTags];
+            next.contains(value) ? next.remove(value) : next.add(value);
+            ref.read(selectedTagsProvider.notifier).state = next;
+          }
+
+          return SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * .82,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(18, 6, 18, 28),
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Filtros avanzados',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          ref.read(selectedGenresProvider.notifier).state = [];
+                          ref.read(selectedTagsProvider.notifier).state = [];
+                          ref.read(storySortProvider.notifier).state = 'recent';
+                          ref.read(matureFilterProvider.notifier).state =
+                              'exclude';
+                          ref.read(minChaptersProvider.notifier).state = 0;
+                          ref.read(minRatingProvider.notifier).state = 0;
+                        },
+                        child: const Text('Limpiar'),
+                      ),
+                    ],
+                  ),
+                  DropdownButtonFormField<String>(
+                    initialValue: sort,
+                    decoration: const InputDecoration(labelText: 'Ordenar'),
+                    items: taxonomy.sortOptions
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item['value'],
+                            child: Text(item['label'] ?? item['value'] ?? ''),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref.read(storySortProvider.notifier).state = value;
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: mature,
+                    decoration: const InputDecoration(labelText: 'Contenido'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'exclude',
+                        child: Text('Sin contenido adulto'),
+                      ),
+                      DropdownMenuItem(value: 'include', child: Text('Todo')),
+                      DropdownMenuItem(
+                        value: 'only',
+                        child: Text('Solo adulto'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref.read(matureFilterProvider.notifier).state = value;
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Mínimo de capítulos: $minChapters'),
+                  Slider(
+                    value: minChapters.toDouble(),
+                    min: 0,
+                    max: 100,
+                    divisions: 20,
+                    onChanged: (value) =>
+                        ref.read(minChaptersProvider.notifier).state = value
+                            .round(),
+                  ),
+                  Text(
+                    'Valoración mínima: ${minRating == 0 ? 'Cualquiera' : '$minRating+'}',
+                  ),
+                  Slider(
+                    value: minRating,
+                    min: 0,
+                    max: 5,
+                    divisions: 10,
+                    onChanged: (value) =>
+                        ref.read(minRatingProvider.notifier).state = value,
+                  ),
+                  Text(
+                    'Géneros',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: taxonomy.genres
+                        .map(
+                          (genre) => FilterChip(
+                            label: Text(genre),
+                            selected: selectedGenres.contains(genre),
+                            onSelected: (_) => toggleGenre(genre),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  ...taxonomy.tagGroups.map(
+                    (group) => ExpansionTile(
+                      title: Text(group.label),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: group.tags
+                                .map(
+                                  (tag) => FilterChip(
+                                    label: Text(tag),
+                                    selected: selectedTags.contains(tag),
+                                    onSelected: (_) => toggleTag(tag),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(sheetContext),
+                    child: const Text('Aplicar filtros'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ref = this.ref;
     final storiesAsync = ref.watch(storiesProvider);
-    final selectedGenre = ref.watch(selectedGenreProvider);
     final searchQuery = ref.watch(searchQueryProvider);
     final showAll = ref.watch(showAllStoriesProvider);
     final auth = ref.watch(authProvider);
@@ -68,6 +229,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
             tooltip: 'Buscar',
             onPressed: () => _searchFocusNode.requestFocus(),
             icon: const Icon(Icons.search_rounded),
+          ),
+          IconButton(
+            tooltip: 'Filtros avanzados',
+            onPressed: _openFilters,
+            icon: const Icon(Icons.tune_rounded),
           ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -130,37 +296,22 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                           ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: categories.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: 8),
-                    itemBuilder: (_, index) {
-                      final category = categories[index];
-                      final selected = selectedGenre == category;
-                      return ChoiceChip(
-                        label: Text(category),
-                        selected: selected,
-                        selectedColor: ReadInnColors.indigo,
-                        labelStyle: TextStyle(
-                          color: selected ? Colors.white : ReadInnColors.ink,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        onSelected: (_) =>
-                            ref.read(selectedGenreProvider.notifier).state =
-                                category,
-                      );
-                    },
-                  ),
-                ),
                 const SizedBox(height: 28),
-                _EditorPick(
-                  onTap: () => context.push('/story/story-lighthouse'),
-                ),
+                ref
+                    .watch(featuredStoryProvider)
+                    .when(
+                      data: (story) => story == null
+                          ? const SizedBox.shrink()
+                          : _FeaturedStory(
+                              story: story,
+                              onTap: () => context.push('/story/${story.id}'),
+                            ),
+                      loading: () => const SizedBox(
+                        height: 120,
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                      error: (_, _) => const SizedBox.shrink(),
+                    ),
                 const SizedBox(height: 30),
                 SectionHeader(
                   title: 'Tendencias',
@@ -192,10 +343,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   }
 }
 
-class _EditorPick extends StatelessWidget {
+class _FeaturedStory extends StatelessWidget {
+  final StorySummary story;
   final VoidCallback onTap;
 
-  const _EditorPick({required this.onTap});
+  const _FeaturedStory({required this.story, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -211,7 +363,7 @@ class _EditorPick extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'SELECCIÓN DEL EDITOR',
+                    'DESTACADA DE LAS ÚLTIMAS 24 HORAS',
                     style: TextStyle(
                       color: ReadInnColors.primaryDeep,
                       fontSize: 11,
@@ -221,15 +373,18 @@ class _EditorPick extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'La luz del faro',
+                    story.title,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    'Una cartógrafa vuelve a la costa y encuentra un mapa que no debería existir.',
-                    style: TextStyle(color: ReadInnColors.muted, height: 1.45),
+                  Text(
+                    story.synopsis,
+                    style: const TextStyle(
+                      color: ReadInnColors.muted,
+                      height: 1.45,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
@@ -241,9 +396,13 @@ class _EditorPick extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-            const BookCover(
-              title: 'La luz\ndel faro',
-              asset: 'assets/images/silver_feather.jpg',
+            BookCover(
+              title: story.title,
+              author: story.author,
+              asset: story.coverColor.startsWith('http')
+                  ? null
+                  : 'assets/images/silver_feather.jpg',
+              imageUrl: story.coverColor,
               color: ReadInnColors.indigo,
               width: 86,
               height: 128,
@@ -268,6 +427,18 @@ class _StoryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (stories.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 36),
+        child: Center(
+          child: Text(
+            'No hay tendencias disponibles. Conéctate para descubrir nuevas obras o abre tus descargas desde Biblioteca.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: ReadInnColors.muted, height: 1.45),
+          ),
+        ),
+      );
+    }
     final visible = showAll ? stories : stories.take(4).toList();
     return LayoutBuilder(
       builder: (context, constraints) {

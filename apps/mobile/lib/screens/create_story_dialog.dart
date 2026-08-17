@@ -33,21 +33,13 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
   final _titleController = TextEditingController();
   final _synopsisController = TextEditingController();
   final _imagePicker = ImagePicker();
-  String _selectedGenre = 'Misterio';
+  final Set<String> _selectedGenres = {'Misterio'};
+  final Set<String> _selectedTags = {};
   XFile? _coverFile;
   Uint8List? _coverBytes;
   String? _coverMimeType;
   bool _isMature = false;
   bool _isLoading = false;
-
-  static const genres = [
-    'Misterio',
-    'Ciencia ficción',
-    'Fantasía',
-    'Romance',
-    'Terror',
-    'Drama',
-  ];
 
   @override
   void dispose() {
@@ -124,6 +116,12 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
       );
       return;
     }
+    if (_selectedGenres.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona al menos un género.')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -143,7 +141,8 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
       final createdStory = await api.createStory(
         title: title,
         synopsis: synopsis,
-        genre: _selectedGenre,
+        genres: _selectedGenres.toList(),
+        tags: _selectedTags.toList(),
         isMature: _isMature,
         authorName: auth.user?.displayName ?? 'Invitado',
         authorUsername: auth.user?.username ?? 'invitado',
@@ -178,6 +177,7 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final taxonomy = ref.watch(storyTaxonomyProvider);
     return ConstrainedBox(
       constraints: BoxConstraints(
         maxWidth: 480,
@@ -308,52 +308,89 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
               ),
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedGenre,
-                    decoration: const InputDecoration(labelText: 'Género'),
-                    items: genres
+            taxonomy.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const Text('No pudimos cargar las categorías.'),
+              data: (options) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Géneros (hasta 5)',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 7),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: options.genres
                         .map(
-                          (genre) => DropdownMenuItem(
-                            value: genre,
-                            child: Text(genre),
+                          (genre) => FilterChip(
+                            label: Text(genre),
+                            selected: _selectedGenres.contains(genre),
+                            onSelected: _isLoading
+                                ? null
+                                : (selected) {
+                                    if (selected &&
+                                        _selectedGenres.length >= 5) {
+                                      return;
+                                    }
+                                    setState(
+                                      () => selected
+                                          ? _selectedGenres.add(genre)
+                                          : _selectedGenres.remove(genre),
+                                    );
+                                  },
                           ),
                         )
                         .toList(),
-                    onChanged: _isLoading
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() => _selectedGenre = value);
-                            }
-                          },
                   ),
-                ),
-                const SizedBox(width: 16),
-                Flexible(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Checkbox(
-                        value: _isMature,
-                        activeColor: ReadInnColors.primary,
-                        onChanged: _isLoading
-                            ? null
-                            : (value) {
-                                setState(() => _isMature = value ?? false);
-                              },
-                      ),
-                      const Flexible(
-                        child: Text(
-                          'Contenido +18',
-                          style: TextStyle(fontSize: 13),
+                  const SizedBox(height: 8),
+                  ...options.tagGroups.map(
+                    (group) => ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: Text(group.label),
+                      children: [
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: group.tags
+                              .map(
+                                (tag) => FilterChip(
+                                  label: Text(tag),
+                                  selected: _selectedTags.contains(tag),
+                                  onSelected: _isLoading
+                                      ? null
+                                      : (selected) {
+                                          if (selected &&
+                                              _selectedTags.length >= 20) {
+                                            return;
+                                          }
+                                          setState(
+                                            () => selected
+                                                ? _selectedTags.add(tag)
+                                                : _selectedTags.remove(tag),
+                                          );
+                                        },
+                                ),
+                              )
+                              .toList(),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                ],
+              ),
+            ),
+            Row(
+              children: [
+                Checkbox(
+                  value: _isMature,
+                  activeColor: ReadInnColors.primary,
+                  onChanged: _isLoading
+                      ? null
+                      : (value) => setState(() => _isMature = value ?? false),
                 ),
+                const Text('Contenido +18', style: TextStyle(fontSize: 13)),
               ],
             ),
             const SizedBox(height: 24),

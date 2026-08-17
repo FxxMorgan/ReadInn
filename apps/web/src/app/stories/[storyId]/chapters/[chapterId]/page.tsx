@@ -26,12 +26,14 @@ const themeOptions: Record<ReaderTheme, { background: string; text: string; mute
 };
 
 function paragraphs(content: unknown): string[] {
-  if (Array.isArray(content)) return content.map(String);
+  if (Array.isArray(content)) return content.flatMap((item) => paragraphs(item));
+  if (typeof content === 'string') return content.split(/\r?\n\s*\r?\n|\r?\n/).map((item) => item.trim()).filter(Boolean);
   if (content && typeof content === 'object' && 'content' in content) {
-    const nodes = (content as { content?: Array<{ content?: Array<{ text?: string }> }> }).content ?? [];
-    return nodes.map((node) => node.content?.map((part) => part.text ?? '').join('') ?? '').filter(Boolean);
+    const nodes = (content as { content?: unknown[] }).content ?? [];
+    return nodes.flatMap((node) => paragraphs(node));
   }
-  return [String(content ?? '')].filter(Boolean);
+  if (content && typeof content === 'object' && 'text' in content) return [String((content as { text?: unknown }).text ?? '')].filter(Boolean);
+  return [];
 }
 
 export default function ReaderPage({ params }: { params: { storyId: string; chapterId: string } }) {
@@ -91,7 +93,10 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
     window.localStorage.setItem('readinn-reader-settings', JSON.stringify(value));
   }
 
-  const copy = useMemo(() => paragraphs(chapter?.content), [chapter?.content]);
+  const copy = useMemo(() => {
+    const parsed = paragraphs(chapter?.content);
+    return parsed.length ? parsed : paragraphs(chapter?.plainText);
+  }, [chapter?.content, chapter?.plainText]);
   const colors = themeOptions[theme];
   const fontFamily = fontOptions.find((option) => option.id === font)?.family ?? fontOptions[0]!.family;
   const generalComments = comments.filter((comment) => comment.paragraphIndex === undefined && !comment.parentCommentId);

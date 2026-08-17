@@ -7,6 +7,9 @@ class StorySummary {
   final String authorUsername;
   final String synopsis;
   final String genre;
+  final List<String> genres;
+  final List<StoryTag> tags;
+  final String languageCode;
   final String status;
   final int chapterCount;
   final bool isMature;
@@ -21,6 +24,9 @@ class StorySummary {
     required this.authorUsername,
     required this.synopsis,
     required this.genre,
+    this.genres = const [],
+    this.tags = const [],
+    this.languageCode = 'es',
     required this.status,
     required this.chapterCount,
     required this.isMature,
@@ -36,6 +42,14 @@ class StorySummary {
     authorUsername: json['authorUsername'] as String? ?? 'anonimo',
     synopsis: json['synopsis'] as String? ?? '',
     genre: json['genre'] as String? ?? 'General',
+    genres: (json['genres'] as List<dynamic>? ?? const [])
+        .map((item) => item.toString())
+        .toList(),
+    tags: (json['tags'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(StoryTag.fromJson)
+        .toList(),
+    languageCode: json['languageCode'] as String? ?? 'es',
     status: json['status'] as String? ?? 'published',
     chapterCount: (json['chapterCount'] as num?)?.toInt() ?? 0,
     isMature: json['isMature'] as bool? ?? false,
@@ -76,6 +90,9 @@ class StoryDetail extends StorySummary {
     required super.authorUsername,
     required super.synopsis,
     required super.genre,
+    super.genres,
+    super.tags,
+    super.languageCode,
     required super.status,
     required super.chapterCount,
     required super.isMature,
@@ -98,6 +115,14 @@ class StoryDetail extends StorySummary {
       authorUsername: json['authorUsername'] as String? ?? 'anonimo',
       synopsis: json['synopsis'] as String? ?? '',
       genre: json['genre'] as String? ?? 'General',
+      genres: (json['genres'] as List<dynamic>? ?? const [])
+          .map((item) => item.toString())
+          .toList(),
+      tags: (json['tags'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(StoryTag.fromJson)
+          .toList(),
+      languageCode: json['languageCode'] as String? ?? 'es',
       status: json['status'] as String? ?? 'published',
       chapterCount: (json['chapterCount'] as num?)?.toInt() ?? chapters.length,
       isMature: json['isMature'] as bool? ?? false,
@@ -107,6 +132,66 @@ class StoryDetail extends StorySummary {
       chapters: chapters,
     );
   }
+}
+
+class StoryTag {
+  final String name;
+  final String kind;
+
+  const StoryTag({required this.name, required this.kind});
+
+  factory StoryTag.fromJson(Map<String, dynamic> json) => StoryTag(
+    name: json['name'] as String? ?? '',
+    kind: json['kind'] as String? ?? 'theme',
+  );
+}
+
+class StoryTagGroup {
+  final String kind;
+  final String label;
+  final List<String> tags;
+
+  const StoryTagGroup({
+    required this.kind,
+    required this.label,
+    required this.tags,
+  });
+
+  factory StoryTagGroup.fromJson(Map<String, dynamic> json) => StoryTagGroup(
+    kind: json['kind'] as String? ?? 'theme',
+    label: json['label'] as String? ?? 'Etiquetas',
+    tags: (json['tags'] as List<dynamic>? ?? const [])
+        .map((item) => item.toString())
+        .toList(),
+  );
+}
+
+class StoryTaxonomy {
+  final List<String> genres;
+  final List<StoryTagGroup> tagGroups;
+  final List<Map<String, String>> sortOptions;
+
+  const StoryTaxonomy({
+    required this.genres,
+    required this.tagGroups,
+    required this.sortOptions,
+  });
+
+  factory StoryTaxonomy.fromJson(Map<String, dynamic> json) => StoryTaxonomy(
+    genres: (json['genres'] as List<dynamic>? ?? const [])
+        .map((item) => item.toString())
+        .toList(),
+    tagGroups: (json['tagGroups'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(StoryTagGroup.fromJson)
+        .toList(),
+    sortOptions: (json['sortOptions'] as List<dynamic>? ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (item) => item.map((key, value) => MapEntry(key, value.toString())),
+        )
+        .toList(),
+  );
 }
 
 class ChapterDetail {

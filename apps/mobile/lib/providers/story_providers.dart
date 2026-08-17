@@ -10,14 +10,41 @@ final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
 final selectedGenreProvider = StateProvider<String>((ref) => 'Todos');
+final selectedGenresProvider = StateProvider<List<String>>((ref) => const []);
+final selectedTagsProvider = StateProvider<List<String>>((ref) => const []);
+final storySortProvider = StateProvider<String>((ref) => 'recent');
+final matureFilterProvider = StateProvider<String>((ref) => 'exclude');
+final minChaptersProvider = StateProvider<int>((ref) => 0);
+final minRatingProvider = StateProvider<double>((ref) => 0);
 final showAllStoriesProvider = StateProvider<bool>((ref) => false);
+
+final storyTaxonomyProvider = FutureProvider<StoryTaxonomy>((ref) async {
+  return ref.watch(apiServiceProvider).fetchStoryTaxonomy();
+});
+
+final featuredStoryProvider = FutureProvider<StorySummary?>((ref) async {
+  return ref.watch(apiServiceProvider).fetchFeaturedStory();
+});
 
 final storiesProvider = FutureProvider<List<StorySummary>>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
   final query = ref.watch(searchQueryProvider);
-  final genre = ref.watch(selectedGenreProvider);
+  final genres = ref.watch(selectedGenresProvider);
+  final tags = ref.watch(selectedTagsProvider);
+  final sort = ref.watch(storySortProvider);
+  final mature = ref.watch(matureFilterProvider);
+  final minChapters = ref.watch(minChaptersProvider);
+  final minRating = ref.watch(minRatingProvider);
 
-  return apiService.fetchStories(query: query, genre: genre);
+  return apiService.fetchStories(
+    query: query,
+    genres: genres,
+    tags: tags,
+    sort: sort,
+    mature: mature,
+    minChapters: minChapters,
+    minRating: minRating,
+  );
 });
 
 final storyDetailProvider = FutureProvider.family<StoryDetail, String>((

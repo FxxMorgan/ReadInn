@@ -133,6 +133,29 @@ describe('ReadInn API', () => {
     await app.close();
   });
 
+  it('exposes the story taxonomy and supports advanced fixture filters', async () => {
+    const app = await buildApp(config);
+    const taxonomy = await app.inject({ method: 'GET', url: '/v1/stories/filters' });
+    const filtered = await app.inject({ method: 'GET', url: '/v1/stories?genres=Misterio&sort=title' });
+
+    expect(taxonomy.statusCode).toBe(200);
+    expect(taxonomy.json<{ data: { genres: string[]; tagGroups: unknown[] } }>().data.genres).toContain('Misterio');
+    expect(taxonomy.json<{ data: { tagGroups: unknown[] } }>().data.tagGroups.length).toBeGreaterThanOrEqual(4);
+    expect(filtered.statusCode).toBe(200);
+    expect(filtered.json<{ data: Array<{ genre: string }> }>().data).toHaveLength(1);
+    expect(filtered.json<{ data: Array<{ genre: string }> }>().data[0]?.genre).toBe('Misterio');
+    await app.close();
+  });
+
+  it('returns a deterministic featured story when the database is unavailable', async () => {
+    const app = await buildApp(config);
+    const response = await app.inject({ method: 'GET', url: '/v1/stories/featured' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ data: { id: string } }>().data.id).toBe('story-lighthouse');
+    await app.close();
+  });
+
   it('returns a chapter and a typed not-found error', async () => {
     const app = await buildApp(config);
     const chapterResponse = await app.inject({

@@ -3,10 +3,26 @@ import { z } from 'zod';
 import { AppError } from '../../shared/errors.js';
 import { storyRepository } from './story-repository.js';
 import { buildEpub, buildPdf, type ExportChapter } from './story-export.js';
+import { storyTaxonomyResponse } from './story-taxonomy.js';
+
+const csvValues = z.preprocess((value) => {
+  if (Array.isArray(value)) return value.flatMap((item) => String(item).split(','));
+  if (typeof value === 'string') return value.split(',');
+  return value;
+}, z.array(z.string().trim().min(1).max(100)).max(20).optional());
 
 const listQuerySchema = z.object({
   query: z.string().trim().max(100).optional(),
   genre: z.string().trim().max(50).optional(),
+  genres: csvValues,
+  tags: csvValues,
+  genreMode: z.enum(['any', 'all']).default('any'),
+  tagMode: z.enum(['any', 'all']).default('any'),
+  mature: z.enum(['exclude', 'include', 'only']).default('exclude'),
+  language: z.string().trim().min(2).max(10).optional(),
+  minChapters: z.coerce.number().int().min(0).max(10000).default(0),
+  minRating: z.coerce.number().min(0).max(5).default(0),
+  sort: z.enum(['recent', 'popular', 'rating', 'chapters', 'title']).default('recent'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -25,6 +41,16 @@ function safeFilename(value: string): string {
 }
 
 export function registerStoryRoutes(app: FastifyInstance): void {
+  app.get('/v1/stories/filters', async (_request, reply) => {
+    reply.header('Cache-Control', 'public, max-age=86400');
+    return { data: storyTaxonomyResponse() };
+  });
+
+  app.get('/v1/stories/featured', async (_request, reply) => {
+    reply.header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    return { data: await storyRepository.getFeaturedStory() };
+  });
+
   app.get('/v1/stories', async (request, reply) => {
     const query = listQuerySchema.parse(request.query);
     reply.header('Cache-Control', 'public, max-age=0, must-revalidate');

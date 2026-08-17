@@ -496,7 +496,8 @@ class ApiService {
   Future<StorySummary> createStory({
     required String title,
     required String synopsis,
-    required String genre,
+    required List<String> genres,
+    required List<String> tags,
     required bool isMature,
     required String authorName,
     required String authorUsername,
@@ -508,7 +509,8 @@ class ApiService {
       data: {
         'title': title,
         'synopsis': synopsis,
-        'genre': genre,
+        'genres': genres,
+        'tags': tags,
         'isMature': isMature,
         'status': 'published',
         'coverColor': ?coverUrl,
@@ -528,6 +530,26 @@ class ApiService {
   }) async {
     final response = await _dio.get(
       '/v1/me/stories/$storyId',
+      options: _authOptions(token),
+    );
+    return StoryDetail.fromJson(response.data['data'] as Map<String, dynamic>);
+  }
+
+  Future<StoryDetail> updateStory(
+    String storyId, {
+    required String token,
+    String? coverUrl,
+    bool removeCover = false,
+    List<String>? genres,
+    List<String>? tags,
+  }) async {
+    final response = await _dio.patch(
+      '/v1/me/stories/$storyId',
+      data: {
+        if (removeCover) 'coverColor': null else 'coverColor': ?coverUrl,
+        'genres': ?genres,
+        'tags': ?tags,
+      },
       options: _authOptions(token),
     );
     return StoryDetail.fromJson(response.data['data'] as Map<String, dynamic>);
@@ -777,14 +799,24 @@ class ApiService {
 
   Future<List<StorySummary>> fetchStories({
     String? query,
-    String? genre,
+    List<String> genres = const [],
+    List<String> tags = const [],
+    String sort = 'recent',
+    String mature = 'exclude',
+    int minChapters = 0,
+    double minRating = 0,
   }) async {
     try {
       final response = await _dio.get(
         '/v1/stories',
         queryParameters: {
           if (query?.isNotEmpty == true) 'query': query,
-          if (genre?.isNotEmpty == true && genre != 'Todos') 'genre': genre,
+          if (genres.isNotEmpty) 'genres': genres.join(','),
+          if (tags.isNotEmpty) 'tags': tags.join(','),
+          'sort': sort,
+          'mature': mature,
+          if (minChapters > 0) 'minChapters': minChapters,
+          if (minRating > 0) 'minRating': minRating,
         },
       );
       final data = response.data['data'] as List<dynamic>? ?? [];
@@ -793,19 +825,25 @@ class ApiService {
           .toList();
     } catch (error) {
       debugPrint('API unavailable, using fixture fallback: $error');
-      return _stories.where((story) {
-        final genreMatches =
-            genre == null ||
-            genre == 'Todos' ||
-            story.genre.toLowerCase() == genre.toLowerCase();
-        final queryMatches =
-            query == null ||
-            query.isEmpty ||
-            '${story.title} ${story.author} ${story.synopsis}'
-                .toLowerCase()
-                .contains(query.toLowerCase());
-        return genreMatches && queryMatches;
-      }).toList();
+      return const <StorySummary>[];
+    }
+  }
+
+  Future<StoryTaxonomy> fetchStoryTaxonomy() async {
+    final response = await _dio.get('/v1/stories/filters');
+    return StoryTaxonomy.fromJson(
+      response.data['data'] as Map<String, dynamic>,
+    );
+  }
+
+  Future<StorySummary?> fetchFeaturedStory() async {
+    try {
+      final response = await _dio.get('/v1/stories/featured');
+      final data = response.data['data'];
+      return data is Map<String, dynamic> ? StorySummary.fromJson(data) : null;
+    } catch (error) {
+      debugPrint('Featured story unavailable: $error');
+      return null;
     }
   }
 

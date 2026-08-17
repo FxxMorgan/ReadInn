@@ -30,11 +30,27 @@ export interface StorySummary {
   authorUsername: string;
   synopsis: string;
   genre: string;
+  genres?: string[];
+  tags?: StoryTag[];
+  languageCode?: string;
   status: StoryStatus;
   chapterCount: number;
   isMature: boolean;
   coverColor: string;
   updatedAt?: string;
+  averageRating?: number;
+  ratingCount?: number;
+}
+
+export interface StoryTag {
+  name: string;
+  kind: 'type' | 'setting' | 'tone' | 'content' | 'theme';
+}
+
+export interface StoryTaxonomy {
+  genres: string[];
+  tagGroups: Array<{ kind: StoryTag['kind']; label: string; tags: string[] }>;
+  sortOptions: Array<{ value: 'recent' | 'popular' | 'rating' | 'chapters' | 'title'; label: string }>;
 }
 
 export interface StoryDetail extends StorySummary {

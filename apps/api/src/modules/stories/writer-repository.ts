@@ -1,18 +1,22 @@
 import { Prisma } from '@prisma/client';
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
 import { storyFixtures, chapterFixtures, type StorySummary } from './story-fixtures.js';
+import { storyTagKind } from './story-taxonomy.js';
 
 const offlineStoriesByAuthor = new Map<string, StorySummary[]>();
 const offlineChapterMeta = new Map<string, { authorId: string; status: string; contentVersion: number; updatedAt: string }>();
 const offlineRevisions = new Map<string, Array<{ id: string; version: number; title: string; content: unknown; plainText: string; reason: string; createdAt: string }>>();
 
-export interface CreateStoryParams { authorId: string; title: string; synopsis: string; genre: string; isMature?: boolean; coverColor?: string; status?: 'draft' | 'published' }
+export interface CreateStoryParams { authorId: string; title: string; synopsis: string; genres: string[]; tags: string[]; isMature?: boolean; coverColor?: string; status?: 'draft' | 'published' }
+export interface UpdateStoryParams { authorId: string; storyId: string; title?: string; synopsis?: string; genres?: string[]; tags?: string[]; isMature?: boolean; coverColor?: string | null }
 export interface CreateChapterParams { storyId: string; title: string; content: unknown; status?: 'draft' | 'published' }
 export interface UpdateChapterParams { chapterId: string; authorId: string; title: string; content: unknown; plainText: string; expectedVersion: number }
 
 function slugify(value: string, fallback: string) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || fallback; }
 function contentToParagraphs(content: unknown): string[] { if (Array.isArray(content)) return content.map(String); if (content && typeof content === 'object' && 'content' in content) { const nodes = (content as { content?: Array<{ content?: Array<{ text?: string }> }> }).content ?? []; return nodes.map((node) => node.content?.map((part) => part.text ?? '').join('') ?? '').filter(Boolean); } return [String(content ?? '')].filter(Boolean); }
 function metrics(plainText: string) { const wordCount = plainText.split(/\s+/).filter(Boolean).length; return { wordCount, estimatedReadMin: Math.max(1, Math.ceil(wordCount / 200)) }; }
+async function resolveGenres(names:string[]){return Promise.all([...new Set(names)].map(async(name)=>{const existing=await prisma.genre.findFirst({where:{name:{equals:name,mode:'insensitive'}}});return existing??prisma.genre.create({data:{name,slug:`${slugify(name,'general')}-${Math.random().toString(36).slice(2,7)}`}})}));}
+async function resolveTags(names:string[]){return Promise.all([...new Set(names)].map(async(name)=>{const kind=storyTagKind(name);if(!kind)throw new Error(`Etiqueta no permitida: ${name}`);const existing=await prisma.tag.findFirst({where:{name:{equals:name,mode:'insensitive'}}});return existing??prisma.tag.create({data:{name,kind,slug:`${slugify(name,'tag')}-${Math.random().toString(36).slice(2,7)}`}})}));}
 
 export class WriterRepository {
   async getAllStories(includeArchived = false): Promise<StorySummary[]> {
@@ -21,27 +25,40 @@ export class WriterRepository {
         .flat()
         .filter((story) => includeArchived || story.status !== 'archived');
     }
-    const stories = await prisma.story.findMany({ where: includeArchived ? {} : { status: { not: 'archived' } }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, _count: { select: { chapters: true } } } });
-    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
+    const stories = await prisma.story.findMany({ where: includeArchived ? {} : { status: { not: 'archived' } }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, tags: { include: { tag: true } }, _count: { select: { chapters: true } } } });
+    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
   }
 
   async getUserStories(authorId: string, includeArchived = false): Promise<StorySummary[]> {
     if (!(await checkDatabaseConnection())) return (offlineStoriesByAuthor.get(authorId) ?? []).filter((story) => includeArchived || story.status !== 'archived');
-    const stories = await prisma.story.findMany({ where: { authorId, ...(includeArchived ? {} : { status: { not: 'archived' } }) }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, _count: { select: { chapters: true } } } });
-    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
+    const stories = await prisma.story.findMany({ where: { authorId, ...(includeArchived ? {} : { status: { not: 'archived' } }) }, orderBy: { updatedAt: 'desc' }, include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, tags: { include: { tag: true } }, _count: { select: { chapters: true } } } });
+    return stories.map((story) => ({ id: story.id, title: story.title, author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username, authorUsername: story.author.username, synopsis: story.synopsis, genre: story.genres[0]?.genre.name ?? 'General', genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,status: story.status, chapterCount: story._count.chapters, isMature: story.isMature, coverColor: story.coverUrl ?? '#855300', updatedAt: story.updatedAt.toISOString() }));
   }
 
   async getUserStory(authorId: string, storyId: string) {
     if (!(await checkDatabaseConnection())) { const summary=(offlineStoriesByAuthor.get(authorId)??[]).find((story)=>story.id===storyId); if(!summary)return null; return {...summary,chapters:chapterFixtures.filter((chapter)=>chapter.storyId===storyId).map((chapter)=>({...chapter,status:offlineChapterMeta.get(chapter.id)?.status??'draft'}))}; }
-    const story=await prisma.story.findFirst({where:{id:storyId,authorId},include:{author:{include:{profile:true}},genres:{include:{genre:true}},chapters:{where:{status:{not:'archived'}},orderBy:{position:'asc'},select:{id:true,storyId:true,position:true,title:true,status:true,wordCount:true,updatedAt:true}}}});if(!story)return null;
-    return {id:story.id,title:story.title,author:story.attributionName??story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??'General',status:story.status,chapterCount:story.chapters.length,isMature:story.isMature,coverColor:story.coverUrl??'#855300',chapters:story.chapters.map((chapter)=>({...chapter,updatedAt:chapter.updatedAt.toISOString()}))};
+    const story=await prisma.story.findFirst({where:{id:storyId,authorId},include:{author:{include:{profile:true}},genres:{include:{genre:true}},tags:{include:{tag:true}},chapters:{where:{status:{not:'archived'}},orderBy:{position:'asc'},select:{id:true,storyId:true,position:true,title:true,status:true,wordCount:true,updatedAt:true}}}});if(!story)return null;
+    return {id:story.id,title:story.title,author:story.attributionName??story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??'General',genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,status:story.status,chapterCount:story.chapters.length,isMature:story.isMature,coverColor:story.coverUrl??'#855300',chapters:story.chapters.map((chapter)=>({...chapter,updatedAt:chapter.updatedAt.toISOString()}))};
   }
 
   async createStory(params: CreateStoryParams): Promise<StorySummary> {
     const status=params.status??'published';
-    if (!(await checkDatabaseConnection())) { const story:StorySummary={id:`story-${Date.now()}`,title:params.title,author:params.authorId,authorUsername:params.authorId,synopsis:params.synopsis,genre:params.genre,status,chapterCount:0,isMature:params.isMature??false,coverColor:params.coverColor??'#855300'};if(status==='published')storyFixtures.unshift(story);const list=offlineStoriesByAuthor.get(params.authorId)??[];list.unshift(story);offlineStoriesByAuthor.set(params.authorId,list);return story; }
-    const genre=await prisma.genre.findFirst({where:{name:{equals:params.genre,mode:'insensitive'}}});const data:Prisma.StoryCreateInput={author:{connect:{id:params.authorId}},title:params.title,slug:`${slugify(params.title,'obra')}-${Date.now().toString().slice(-5)}`,synopsis:params.synopsis,status,isMature:params.isMature??false,coverUrl:params.coverColor??'#855300',...(status==='published'?{publishedAt:new Date()}:{}),...(genre?{genres:{create:[{genre:{connect:{id:genre.id}}}]}}:{})};
-    const story=await prisma.story.create({data,include:{author:{include:{profile:true}},genres:{include:{genre:true}}}});return{id:story.id,title:story.title,author:story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??params.genre,status:story.status,chapterCount:0,isMature:story.isMature,coverColor:story.coverUrl??'#855300'};
+    const primaryGenre=params.genres[0]??'General';
+    if (!(await checkDatabaseConnection())) { const story:StorySummary={id:`story-${Date.now()}`,title:params.title,author:params.authorId,authorUsername:params.authorId,synopsis:params.synopsis,genre:primaryGenre,genres:params.genres,tags:params.tags.map((name)=>({name,kind:storyTagKind(name)??'theme'})),languageCode:'es',status,chapterCount:0,isMature:params.isMature??false,coverColor:params.coverColor??'#855300'};if(status==='published')storyFixtures.unshift(story);const list=offlineStoriesByAuthor.get(params.authorId)??[];list.unshift(story);offlineStoriesByAuthor.set(params.authorId,list);return story; }
+    const [genres,tags]=await Promise.all([resolveGenres(params.genres),resolveTags(params.tags)]);const data:Prisma.StoryCreateInput={author:{connect:{id:params.authorId}},title:params.title,slug:`${slugify(params.title,'obra')}-${Date.now().toString().slice(-5)}`,synopsis:params.synopsis,status,isMature:params.isMature??false,coverUrl:params.coverColor??'#855300',...(status==='published'?{publishedAt:new Date()}:{}),genres:{create:genres.map((genre)=>({genre:{connect:{id:genre.id}}}))},tags:{create:tags.map((tag)=>({tag:{connect:{id:tag.id}}}))}};
+    const story=await prisma.story.create({data,include:{author:{include:{profile:true}},genres:{include:{genre:true}},tags:{include:{tag:true}}}});return{id:story.id,title:story.title,author:story.author.profile?.displayName??story.author.username,authorUsername:story.author.username,synopsis:story.synopsis,genre:story.genres[0]?.genre.name??primaryGenre,genres:story.genres.map((item)=>item.genre.name),tags:story.tags.map((item)=>({name:item.tag.name,kind:item.tag.kind})),languageCode:story.languageCode,status:story.status,chapterCount:0,isMature:story.isMature,coverColor:story.coverUrl??'#855300'};
+  }
+
+  async updateStory(params:UpdateStoryParams){
+    if(!(await checkDatabaseConnection()))return null;
+    const existing=await prisma.story.findFirst({where:{id:params.storyId,authorId:params.authorId},select:{id:true}});if(!existing)return null;
+    const [genres,tags]=await Promise.all([params.genres?resolveGenres(params.genres):null,params.tags?resolveTags(params.tags):null]);
+    await prisma.$transaction(async(tx)=>{
+      if(genres){await tx.storyGenre.deleteMany({where:{storyId:params.storyId}});await tx.storyGenre.createMany({data:genres.map((genre)=>({storyId:params.storyId,genreId:genre.id}))});}
+      if(tags){await tx.storyTag.deleteMany({where:{storyId:params.storyId}});if(tags.length)await tx.storyTag.createMany({data:tags.map((tag)=>({storyId:params.storyId,tagId:tag.id}))});}
+      await tx.story.update({where:{id:params.storyId},data:{...(params.title!==undefined?{title:params.title}:{}),...(params.synopsis!==undefined?{synopsis:params.synopsis}:{}),...(params.isMature!==undefined?{isMature:params.isMature}:{}),...(params.coverColor!==undefined?{coverUrl:params.coverColor}:{})}});
+    });
+    return this.getUserStory(params.authorId,params.storyId);
   }
 
   async createChapter(params: CreateChapterParams) {

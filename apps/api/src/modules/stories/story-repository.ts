@@ -5,7 +5,15 @@ import { chapterFixtures, storyFixtures, type Chapter, type StorySummary } from 
 export interface GetStoriesParams {
   query?: string | undefined;
   genre?: string | undefined;
-  sort?: 'recent' | 'popular' | undefined;
+  genres?: string[] | undefined;
+  tags?: string[] | undefined;
+  genreMode?: 'any' | 'all' | undefined;
+  tagMode?: 'any' | 'all' | undefined;
+  mature?: 'exclude' | 'include' | 'only' | undefined;
+  language?: string | undefined;
+  minChapters?: number | undefined;
+  minRating?: number | undefined;
+  sort?: 'recent' | 'popular' | 'rating' | 'chapters' | 'title' | undefined;
   page?: number | undefined;
   limit?: number | undefined;
 }
@@ -15,26 +23,45 @@ export class StoryRepository {
     const normalized = {
       query: params.query?.trim().toLocaleLowerCase('es') ?? '',
       genre: params.genre?.trim().toLocaleLowerCase('es') ?? '',
+      genres: (params.genres ?? []).map((value) => value.trim().toLocaleLowerCase('es')).sort(),
+      tags: (params.tags ?? []).map((value) => value.trim().toLocaleLowerCase('es')).sort(),
+      genreMode: params.genreMode ?? 'any',
+      tagMode: params.tagMode ?? 'any',
+      mature: params.mature ?? 'exclude',
+      language: params.language?.trim().toLocaleLowerCase('es') ?? '',
+      minChapters: params.minChapters ?? 0,
+      minRating: params.minRating ?? 0,
+      sort: params.sort ?? 'recent',
       page: params.page ?? 1,
       limit: params.limit ?? 20,
     };
     return contentCache.remember(
       `stories:${JSON.stringify(normalized)}`,
       ['catalog'],
-      () => this.getStoriesUncached(params),
+      () => this.getStoriesUncached({ ...params, sort: normalized.sort }),
     );
   }
 
-  private async getStoriesUncached({ query, genre, page = 1, limit = 20 }: GetStoriesParams) {
+  private async getStoriesUncached({ query, genre, genres = [], tags = [], genreMode = 'any', tagMode = 'any', mature = 'exclude', language, minChapters = 0, minRating = 0, sort = 'recent', page = 1, limit = 20 }: GetStoriesParams) {
     const isDbConnected = await checkDatabaseConnection();
 
     if (!isDbConnected) {
       // Graceful fixture fallback
       const normalizedQuery = query?.toLocaleLowerCase('es');
+      const selectedGenres = [...new Set([...(genre ? [genre] : []), ...genres])].filter((value) => value && value !== 'Todos');
       const filtered = storyFixtures.filter((story) => {
         if (story.status !== 'published') return false;
-        const matchesGenre =
-          !genre || genre === 'Todos' || story.genre.toLocaleLowerCase('es') === genre.toLocaleLowerCase('es');
+        if (mature === 'exclude' && story.isMature) return false;
+        if (mature === 'only' && !story.isMature) return false;
+        const storyGenres = (story.genres ?? [story.genre]).map((value) => value.toLocaleLowerCase('es'));
+        const matchesGenre = !selectedGenres.length || (genreMode === 'all'
+          ? selectedGenres.every((value) => storyGenres.includes(value.toLocaleLowerCase('es')))
+          : selectedGenres.some((value) => storyGenres.includes(value.toLocaleLowerCase('es'))));
+        const storyTags = (story.tags ?? []).map((tag) => tag.name.toLocaleLowerCase('es'));
+        const matchesTags = !tags.length || (tagMode === 'all'
+          ? tags.every((value) => storyTags.includes(value.toLocaleLowerCase('es')))
+          : tags.some((value) => storyTags.includes(value.toLocaleLowerCase('es'))));
+        if (!matchesTags || (language && story.languageCode !== language)) return false;
         const searchable = `${story.title} ${story.author} ${story.synopsis}`.toLocaleLowerCase('es');
         const matchesText = !normalizedQuery || searchable.includes(normalizedQuery);
         return matchesGenre && matchesText;
@@ -43,7 +70,7 @@ export class StoryRepository {
       const start = (page - 1) * limit;
       const data = filtered.slice(start, start + limit);
       return {
-        data,
+        data: sort === 'title' ? [...data].sort((a, b) => a.title.localeCompare(b.title, 'es')) : data,
         meta: {
           page,
           limit,
@@ -59,31 +86,54 @@ export class StoryRepository {
       status: 'published',
     };
 
+    if (mature === 'exclude') where.isMature = false;
+    if (mature === 'only') where.isMature = true;
+    if (language) where.languageCode = language;
+    if (minChapters > 0) where.publishedChapterCount = { gte: minChapters };
+
     if (query && query.trim()) {
       where.OR = [
         { title: { contains: query, mode: 'insensitive' } },
         { synopsis: { contains: query, mode: 'insensitive' } },
         { attributionName: { contains: query, mode: 'insensitive' } },
         { author: { profile: { displayName: { contains: query, mode: 'insensitive' } } } },
+        { author: { username: { contains: query, mode: 'insensitive' } } },
+        { genres: { some: { genre: { name: { contains: query, mode: 'insensitive' } } } } },
+        { tags: { some: { tag: { name: { contains: query, mode: 'insensitive' } } } } },
       ];
     }
 
-    if (genre && genre !== 'Todos' && genre !== 'Todo') {
-      where.genres = {
-        some: {
-          genre: {
-            name: { equals: genre, mode: 'insensitive' },
-          },
-        },
-      };
+    const selectedGenres = [...new Set([...(genre ? [genre] : []), ...genres])].filter((value) => value && value !== 'Todos' && value !== 'Todo');
+    if (selectedGenres.length) {
+      where.genres = genreMode === 'all'
+        ? undefined
+        : { some: { genre: { name: { in: selectedGenres, mode: 'insensitive' } } } };
+      if (genreMode === 'all') {
+        where.AND = [
+          ...(where.AND ?? []),
+          ...selectedGenres.map((name) => ({
+            genres: { some: { genre: { name: { equals: name, mode: 'insensitive' } } } },
+          })),
+        ];
+      }
+    }
+    if (tags.length) {
+      where.tags = tagMode === 'all'
+        ? undefined
+        : { some: { tag: { name: { in: tags, mode: 'insensitive' } } } };
+      if (tagMode === 'all') {
+        where.AND = [
+          ...(where.AND ?? []),
+          ...tags.map((name) => ({
+            tags: { some: { tag: { name: { equals: name, mode: 'insensitive' } } } },
+          })),
+        ];
+      }
     }
 
-    const [total, stories] = await Promise.all([
-      prisma.story.count({ where }),
-      prisma.story.findMany({
+    const stories = await prisma.story.findMany({
         where,
-        skip: (page - 1) * limit,
-        take: limit,
+        take: 5000,
         orderBy: { publishedAt: 'desc' },
         include: {
           author: {
@@ -92,9 +142,11 @@ export class StoryRepository {
           genres: {
             include: { genre: true },
           },
+          tags: {
+            include: { tag: true },
+          },
         },
-      }),
-    ]);
+      });
 
     const ratingGroups = stories.length
       ? await prisma.storyRating.groupBy({
@@ -126,19 +178,40 @@ export class StoryRepository {
         authorUsername: story.author.username,
         synopsis: story.synopsis,
         genre: primaryGenre,
+        genres: story.genres.map((item) => item.genre.name),
+        tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
+        languageCode: story.languageCode,
         status: story.status as any,
         chapterCount: story.publishedChapterCount,
         isMature: story.isMature,
         coverColor: story.coverUrl ?? '#855300',
         averageRating: rating?.averageRating ?? 0,
         ratingCount: rating?.ratingCount ?? 0,
+        updatedAt: story.updatedAt.toISOString(),
         ...(story.sourceUrl ? { sourceUrl: story.sourceUrl } : {}),
         ...(story.sourceLicense ? { sourceLicense: story.sourceLicense } : {}),
       };
     });
 
+    const popularityGroups = stories.length ? await prisma.readingEvent.groupBy({
+      by: ['storyId'],
+      where: { storyId: { in: stories.map((story) => story.id) } },
+      _count: { _all: true },
+    }) : [];
+    const popularityByStory = new Map(popularityGroups.map((group) => [group.storyId, group._count._all]));
+    data.sort((a, b) => {
+      if (sort === 'title') return a.title.localeCompare(b.title, 'es');
+      if (sort === 'chapters') return b.chapterCount - a.chapterCount;
+      if (sort === 'rating') return (b.averageRating ?? 0) - (a.averageRating ?? 0);
+      if (sort === 'popular') return (popularityByStory.get(b.id) ?? 0) - (popularityByStory.get(a.id) ?? 0);
+      return (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '');
+    });
+    const filteredData = data.filter((story) => (story.averageRating ?? 0) >= minRating);
+    const total = filteredData.length;
+    const pagedData = filteredData.slice((page - 1) * limit, page * limit);
+
     return {
-      data,
+      data: pagedData,
       meta: {
         page,
         limit,
@@ -147,6 +220,34 @@ export class StoryRepository {
         source: 'database',
       },
     };
+  }
+
+  async getFeaturedStory() {
+    const day = new Date().toISOString().slice(0, 10);
+    return contentCache.remember(`featured:${day}`, ['catalog'], async () => {
+      const result = await this.getStories({ sort: 'rating', page: 1, limit: 5000, mature: 'exclude' });
+      if (!result.data.length || !(await checkDatabaseConnection())) return result.data[0] ?? null;
+      const events = await prisma.readingEvent.findMany({
+        where: {
+          storyId: { in: result.data.map((story) => story.id) },
+          createdAt: { gte: new Date(Date.now() - 86_400_000) },
+        },
+        select: { storyId: true, readerKey: true },
+      });
+      const readersByStory = new Map<string, Set<string>>();
+      for (const event of events) {
+        const readers = readersByStory.get(event.storyId) ?? new Set<string>();
+        readers.add(event.readerKey);
+        readersByStory.set(event.storyId, readers);
+      }
+      return [...result.data].sort((a, b) => {
+        const readerDifference = (readersByStory.get(b.id)?.size ?? 0) - (readersByStory.get(a.id)?.size ?? 0);
+        if (readerDifference) return readerDifference;
+        const ratingDifference = (b.averageRating ?? 0) - (a.averageRating ?? 0);
+        if (ratingDifference) return ratingDifference;
+        return (b.ratingCount ?? 0) - (a.ratingCount ?? 0);
+      })[0] ?? null;
+    }, 86_400);
   }
 
   async getStoryById(storyId: string) {
@@ -210,6 +311,9 @@ export class StoryRepository {
         genres: {
           include: { genre: true },
         },
+        tags: {
+          include: { tag: true },
+        },
         chapters: {
           where: { status: 'published' },
           orderBy: { position: 'asc' },
@@ -235,6 +339,9 @@ export class StoryRepository {
       authorUsername: story.author.username,
       synopsis: story.synopsis,
       genre: primaryGenre,
+      genres: story.genres.map((item) => item.genre.name),
+      tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
+      languageCode: story.languageCode,
       status: story.status,
       chapterCount: story.chapters.length,
       isMature: story.isMature,
@@ -312,6 +419,7 @@ export class StoryRepository {
       position: chapter.position,
       title: chapter.title,
       content,
+      plainText: chapter.plainText,
     };
   }
 }

@@ -8,10 +8,25 @@ import { writerRepository } from './writer-repository.js';
 const createStorySchema = z.object({
   title: z.string().min(2).max(150),
   synopsis: z.string().min(10).max(3000),
-  genre: z.string().min(2).max(80),
+  genre: z.string().min(2).max(80).optional(),
+  genres: z.array(z.string().trim().min(2).max(80)).min(1).max(5).optional(),
+  tags: z.array(z.string().trim().min(2).max(100)).max(20).default([]),
   isMature: z.boolean().optional(),
   coverColor: z.string().optional(),
   status: z.enum(['draft', 'published']).optional(),
+}).refine((body) => Boolean(body.genre || body.genres?.length), {
+  message: 'Selecciona al menos un genero.',
+  path: ['genres'],
+});
+const updateStorySchema = z.object({
+  title: z.string().min(2).max(150).optional(),
+  synopsis: z.string().min(10).max(3000).optional(),
+  genres: z.array(z.string().trim().min(2).max(80)).min(1).max(5).optional(),
+  tags: z.array(z.string().trim().min(2).max(100)).max(20).optional(),
+  isMature: z.boolean().optional(),
+  coverColor: z.string().url().nullable().optional(),
+}).refine((body) => Object.values(body).some((value) => value !== undefined), {
+  message: 'Incluye al menos un cambio.',
 });
 const editorContentSchema = z.union([z.array(z.string()), z.record(z.unknown()), z.string()]);
 const createChapterSchema = z.object({
@@ -111,6 +126,27 @@ export function registerWriterRoutes(app: FastifyInstance): void {
     return { data: story };
   });
 
+  app.patch<{ Params: { storyId: string } }>('/v1/me/stories/:storyId', async (request, reply) => {
+    const body = updateStorySchema.parse(request.body);
+    const access = await requireWriter(request, reply);
+    if (!access) return;
+    const authorId = await storyAuthorId(access, request.params.storyId);
+    if (!authorId) return reply.status(404).send({ error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' } });
+    const story = await writerRepository.updateStory({
+      authorId,
+      storyId: request.params.storyId,
+      ...(body.title !== undefined ? { title: body.title } : {}),
+      ...(body.synopsis !== undefined ? { synopsis: body.synopsis } : {}),
+      ...(body.genres !== undefined ? { genres: body.genres } : {}),
+      ...(body.tags !== undefined ? { tags: body.tags } : {}),
+      ...(body.isMature !== undefined ? { isMature: body.isMature } : {}),
+      ...(body.coverColor !== undefined ? { coverColor: body.coverColor } : {}),
+    });
+    if (!story) return reply.status(404).send({ error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' } });
+    await invalidateStory(request.params.storyId);
+    return { data: story };
+  });
+
   app.post('/v1/stories', async (request, reply) => {
     const body = createStorySchema.parse(request.body);
     const access = await requireWriter(request, reply);
@@ -119,7 +155,8 @@ export function registerWriterRoutes(app: FastifyInstance): void {
       authorId: access.userId,
       title: body.title,
       synopsis: body.synopsis,
-      genre: body.genre,
+      genres: body.genres ?? [body.genre!],
+      tags: body.tags,
       ...(body.isMature !== undefined ? { isMature: body.isMature } : {}),
       ...(body.coverColor !== undefined ? { coverColor: body.coverColor } : {}),
       ...(body.status !== undefined ? { status: body.status } : {}),
