@@ -151,10 +151,10 @@ export function storyTaxonomyResponse() {
       { value: 'title', label: 'Título' },
     ],
     ageRatings: [
-      { value: 'all', label: 'Todo público', description: 'Violencia inexistente o muy leve y lenguaje limpio.' },
-      { value: '11', label: '+11', description: 'Violencia leve y temas algo más maduros.' },
-      { value: '13', label: '+13', description: 'Romance, violencia moderada y temas emocionales complejos.' },
-      { value: '16', label: '+16', description: 'Violencia fuerte, lenguaje frecuente, drogas o temas oscuros.' },
+      { value: 'all', label: 'Todo público', description: 'Apto para lectores de cualquier edad.' },
+      { value: '11', label: '+11', description: 'Violencia y temas leves.' },
+      { value: '13', label: '+13', description: 'Romance, peligro y temas moderados.' },
+      { value: '16', label: '+16', description: 'Violencia fuerte y temas maduros.' },
       { value: '18', label: '+18', description: 'Contenido sexual explícito, gore o temas adultos fuertes.' },
     ],
     automaticAgeRules: [
