@@ -151,6 +151,17 @@ class ManageStoryScreen extends ConsumerWidget {
                   onChanged: (value) =>
                       setSheetState(() => ageRating = value ?? 'all'),
                 ),
+                Text(
+                  taxonomy.ageRatings.firstWhere(
+                        (rating) => rating['value'] == ageRating,
+                        orElse: () => taxonomy.ageRatings.first,
+                      )['description'] ??
+                      '',
+                  style: const TextStyle(
+                    color: ReadInnColors.muted,
+                    fontSize: 12,
+                  ),
+                ),
                 const SizedBox(height: 18),
                 Text('Géneros (${genres.length}/5)'),
                 const SizedBox(height: 7),

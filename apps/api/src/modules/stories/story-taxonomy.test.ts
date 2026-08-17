@@ -7,13 +7,15 @@ import {
 
 describe('story age ratings', () => {
   it('publishes the five supported age classifications', () => {
-    expect(storyTaxonomyResponse().ageRatings.map((rating) => rating.value)).toEqual([
+    const ratings = storyTaxonomyResponse().ageRatings;
+    expect(ratings.map((rating) => rating.value)).toEqual([
       'all',
       '11',
       '13',
       '16',
       '18',
     ]);
+    expect(ratings.every((rating) => rating.description.length > 0)).toBe(true);
   });
 
   it('raises Gore to a minimum of +16', () => {

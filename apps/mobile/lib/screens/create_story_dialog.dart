@@ -401,6 +401,21 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
                         : (value) =>
                               setState(() => _ageRating = value ?? 'all'),
                   ),
+            if (taxonomy.valueOrNull?.ageRatings.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  taxonomy.valueOrNull!.ageRatings.firstWhere(
+                        (rating) => rating['value'] == _ageRating,
+                        orElse: () => taxonomy.valueOrNull!.ageRatings.first,
+                      )['description'] ??
+                      '',
+                  style: const TextStyle(
+                    color: ReadInnColors.muted,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

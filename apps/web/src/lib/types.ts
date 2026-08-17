@@ -53,7 +53,7 @@ export interface StoryTaxonomy {
   genres: string[];
   tagGroups: Array<{ kind: StoryTag['kind']; label: string; tags: string[] }>;
   sortOptions: Array<{ value: 'recent' | 'popular' | 'rating' | 'chapters' | 'title'; label: string }>;
-  ageRatings: Array<{ value: 'all' | '11' | '13' | '16' | '18'; label: string }>;
+  ageRatings: Array<{ value: 'all' | '11' | '13' | '16' | '18'; label: string; description?: string }>;
 }
 
 export interface StoryDetail extends StorySummary {
