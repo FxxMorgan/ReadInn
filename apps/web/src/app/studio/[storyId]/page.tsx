@@ -16,6 +16,7 @@ export default function ManageStoryPage({ params }: { params: { storyId: string 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [ageRating, setAgeRating] = useState<'all' | '11' | '13' | '16' | '18'>('all');
+  const [creationMethod, setCreationMethod] = useState<'human' | 'ai_assisted' | 'ai_generated'>('human');
   const [taxonomySaving, setTaxonomySaving] = useState(false);
   const [taxonomyMessage, setTaxonomyMessage] = useState('');
   const coverInput = useRef<HTMLInputElement>(null);
@@ -25,6 +26,7 @@ export default function ManageStoryPage({ params }: { params: { storyId: string 
     setSelectedGenres(loaded.genres?.length ? loaded.genres : [loaded.genre]);
     setSelectedTags(loaded.tags?.map((tag) => tag.name) ?? []);
     setAgeRating(loaded.ageRating ?? (loaded.isMature ? '18' : 'all'));
+    setCreationMethod(loaded.creationMethod ?? 'human');
   }, [params.storyId]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void apiFetch<StoryTaxonomy>('/v1/stories/filters?schema=2').then((value) => setTaxonomy(normalizeStoryTaxonomy(value))).catch(() => setTaxonomy(normalizeStoryTaxonomy(null))); }, []);
@@ -90,7 +92,7 @@ export default function ManageStoryPage({ params }: { params: { storyId: string 
     try {
       await apiFetch(`/v1/me/stories/${params.storyId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ genres: selectedGenres, tags: selectedTags, ageRating }),
+        body: JSON.stringify({ genres: selectedGenres, tags: selectedTags, ageRating, creationMethod }),
       });
       await load();
       setTaxonomyMessage('Clasificacion actualizada.');
@@ -123,6 +125,7 @@ export default function ManageStoryPage({ params }: { params: { storyId: string 
         <div className="story-taxonomy-head"><div><Tags size={19} /><div><h2>Clasificacion</h2><p>Generos, tipo, ambientacion, tono y advertencias de contenido.</p></div></div><button className="primary-button" disabled={taxonomySaving || !taxonomy} onClick={() => void saveTaxonomy()}><Save size={16} />{taxonomySaving ? 'Guardando...' : 'Guardar'}</button></div>
         <div className="field"><label>Generos ({selectedGenres.length}/5)</label><div className="filter-chips">{taxonomy?.genres.map((genre) => <button type="button" key={genre} className={selectedGenres.includes(genre) ? 'active' : ''} onClick={() => toggleGenre(genre)}>{genre}</button>)}</div></div>
         <div className="field"><label>Clasificacion por edad</label><select value={ageRating} onChange={(event) => setAgeRating(event.target.value as typeof ageRating)}>{taxonomy?.ageRatings.map((rating) => <option key={rating.value} value={rating.value}>{rating.label}</option>)}</select><small>{taxonomy?.ageRatings.find((rating) => rating.value === ageRating)?.description} Algunas etiquetas pueden elevar automaticamente la clasificacion minima.</small></div>
+        <div className="field"><label>Origen del contenido</label><select value={creationMethod} onChange={(event) => setCreationMethod(event.target.value as typeof creationMethod)}><option value="human">Creada por autor</option><option value="ai_assisted">Asistida por IA</option><option value="ai_generated">Generada por IA</option></select><small>Esta declaracion se muestra a los lectores junto a la historia.</small></div>
         {taxonomy?.tagGroups.map((group) => <details className="tag-filter-group" key={group.kind} open={selectedTags.some((tag) => group.tags.includes(tag))}><summary>{group.label}<span>{selectedTags.filter((tag) => group.tags.includes(tag)).length || ''}</span></summary><div className="filter-chips">{group.tags.map((tag) => <button type="button" key={tag} className={selectedTags.includes(tag) ? 'active' : ''} onClick={() => toggleTag(tag)}>{tag}</button>)}</div></details>)}
         {taxonomyMessage && <p className={taxonomyMessage.includes('actualizada') ? 'success-message' : 'form-error'}>{taxonomyMessage}</p>}
       </section>

@@ -39,6 +39,7 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
   Uint8List? _coverBytes;
   String? _coverMimeType;
   String _ageRating = 'all';
+  String _creationMethod = 'human';
   bool _isLoading = false;
 
   @override
@@ -144,6 +145,7 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
         genres: _selectedGenres.toList(),
         tags: _selectedTags.toList(),
         ageRating: _ageRating,
+        creationMethod: _creationMethod,
         authorName: auth.user?.displayName ?? 'Invitado',
         authorUsername: auth.user?.username ?? 'invitado',
         coverUrl: coverUrl,
@@ -416,6 +418,38 @@ class _CreateStoryDialogState extends ConsumerState<CreateStoryDialog> {
                   ),
                 ),
               ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              initialValue: _creationMethod,
+              decoration: const InputDecoration(
+                labelText: 'Origen del contenido',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'human',
+                  child: Text('Creada por autor'),
+                ),
+                DropdownMenuItem(
+                  value: 'ai_assisted',
+                  child: Text('Asistida por IA'),
+                ),
+                DropdownMenuItem(
+                  value: 'ai_generated',
+                  child: Text('Generada por IA'),
+                ),
+              ],
+              onChanged: _isLoading
+                  ? null
+                  : (value) =>
+                        setState(() => _creationMethod = value ?? 'human'),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(
+                'Declara si la IA genero la mayor parte de la obra o solo apoyo el proceso creativo.',
+                style: TextStyle(color: ReadInnColors.muted, fontSize: 12),
+              ),
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,

@@ -45,7 +45,7 @@ button { cursor: pointer; }
 .advanced-filters { border-block:1px solid var(--line);padding:18px 0 22px;margin-bottom:30px;display:grid;gap:18px; }
 .filter-toolbar,.results-heading { display:flex;align-items:center;justify-content:space-between;gap:16px; }
 .filter-toolbar button { width:36px;height:36px;border:0;background:transparent;display:grid;place-items:center;color:var(--muted); }
-.filter-row { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px; }
+.filter-row { display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px; }
 .filter-row label { display:grid;gap:6px;font-size:11px;font-weight:800;color:var(--muted); }
 .filter-row select,.filter-row input { min-width:0;height:40px;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:0 10px;color:var(--ink); }
 .filter-section { display:grid;gap:9px; }
@@ -90,6 +90,9 @@ button { cursor: pointer; }
 .book-meta h3 { margin: 5px 0 4px; font-family: Georgia, serif; font-size: 18px; line-height: 1.2; }
 .book-meta p { margin: 0; color: var(--muted); font-size: 13px; }
 .genre { color: var(--terracotta-deep); text-transform: uppercase; font-size: 10px; font-weight: 850; }
+.origin-badge { display: inline-flex; width: fit-content; margin-top: 7px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; font-size: 10px; font-weight: 800; color: var(--muted); }
+.origin-badge.ai_assisted { color: #78552b; border-color: #d9bd8b; background: #fff8e8; }
+.origin-badge.ai_generated { color: #87443d; border-color: #e0aaa2; background: #fff0ee; }
 .chapter-count { display: flex; align-items: center; gap: 5px; margin-top: 10px; color: var(--muted); font-size: 12px; }
 .empty-state, .error-state { min-height: 280px; border: 1px dashed var(--line); display: grid; place-items: center; text-align: center; padding: 40px; border-radius: 7px; color: var(--muted); }
 .form-panel { width: min(480px, calc(100% - 32px)); margin: 70px auto; padding: 30px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }

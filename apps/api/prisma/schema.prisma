@@ -22,6 +22,12 @@ enum StoryStatus {
   suspended
 }
 
+enum StoryCreationMethod {
+  human
+  ai_assisted
+  ai_generated
+}
+
 enum ChapterStatus {
   draft
   scheduled
@@ -44,6 +50,7 @@ model User {
   username           String        @unique
   passwordHash       String        @map("password_hash")
   accountStatus      AccountStatus @default(pending_verification) @map("account_status")
+  isPlaceholder      Boolean       @default(false) @map("is_placeholder")
   isAdmin            Boolean       @default(false) @map("is_admin")
   emailVerifiedAt    DateTime?     @map("email_verified_at")
   writerOnboardedAt  DateTime?     @map("writer_onboarded_at")
@@ -59,6 +66,12 @@ model User {
   wallPostsReceived  WallPost[]     @relation("WallPostProfile")
   following          UserFollow[]   @relation("Follower")
   followers          UserFollow[]   @relation("Following")
+  bookmarks          Bookmark[]
+  readingProgress    ReadingProgress[]
+  refreshSessions    RefreshSession[]
+  mediaAssets        MediaAsset[]
+  moderationReports  ModerationReport[] @relation("ReportAuthor")
+  storyLikes         StoryLike[]
 
   @@map("users")
 }
@@ -87,6 +100,7 @@ model Story {
   status               StoryStatus  @default(draft)
   isMature             Boolean      @default(false) @map("is_mature")
   ageRating            String       @default("all") @map("age_rating") @db.VarChar(5)
+  creationMethod       StoryCreationMethod @default(human) @map("creation_method")
   coverUrl             String?      @map("cover_url")
   attributionName      String?      @map("attribution_name") @db.VarChar(150)
   sourceUrl            String?      @map("source_url")
@@ -95,6 +109,9 @@ model Story {
   languageCode         String       @default("es") @map("language_code")
   wordCount            Int          @default(0) @map("word_count")
   publishedChapterCount Int         @default(0) @map("published_chapter_count")
+  averageRating        Float        @default(0) @map("average_rating")
+  ratingCount          Int          @default(0) @map("rating_count")
+  readCount            Int          @default(0) @map("read_count")
   publishedAt          DateTime?    @map("published_at")
   completedAt          DateTime?    @map("completed_at")
   createdAt            DateTime     @default(now()) @map("created_at")
@@ -107,9 +124,16 @@ model Story {
   ratings              StoryRating[]
   readingEvents        ReadingEvent[]
   comments             ChapterComment[]
+  bookmarks            Bookmark[]
+  readingProgress      ReadingProgress[]
+  likes                StoryLike[]
 
   @@index([authorId, updatedAt(sort: Desc)])
   @@index([status, publishedAt(sort: Desc)])
+  @@index([status, averageRating(sort: Desc)])
+  @@index([status, readCount(sort: Desc)])
+  @@index([status, title])
+  @@index([status, creationMethod, publishedAt(sort: Desc)])
   @@map("stories")
 }
 
@@ -178,6 +202,7 @@ model Chapter {
   revisions         ChapterRevision[]
   readingEvents     ReadingEvent[]
   comments          ChapterComment[]
+  readingProgress   ReadingProgress[]
 
   @@unique([storyId, slug])
   @@unique([storyId, position])
@@ -194,6 +219,7 @@ model ChapterComment {
   authorName     String   @map("author_name") @db.VarChar(80)
   body           String   @db.VarChar(1000)
   paragraphIndex Int?     @map("paragraph_index")
+  depth          Int      @default(0)
   likes          Int      @default(0)
   downvotes      Int      @default(0)
   createdAt      DateTime @default(now()) @map("created_at")
@@ -296,4 +322,97 @@ model ReadingEvent {
   @@index([storyId, createdAt(sort: Desc)])
   @@index([storyId, readerKey])
   @@map("reading_events")
+}
+
+model Bookmark {
+  userId    String   @map("user_id") @db.Uuid
+  storyId   String   @map("story_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storyId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("bookmarks")
+}
+
+model StoryLike {
+  userId    String   @map("user_id") @db.Uuid
+  storyId   String   @map("story_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storyId])
+  @@index([storyId, createdAt(sort: Desc)])
+  @@map("story_likes")
+}
+
+model ReadingProgress {
+  userId             String   @map("user_id") @db.Uuid
+  storyId            String   @map("story_id") @db.Uuid
+  chapterId          String   @map("chapter_id") @db.Uuid
+  progressPercentage Float    @default(0) @map("progress_percentage")
+  lastPosition       Float?   @map("last_position")
+  isCompleted        Boolean  @default(false) @map("is_completed")
+  seenChapterIds     String[] @default([]) @map("seen_chapter_ids") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story              Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  chapter            Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storyId])
+  @@index([userId, updatedAt(sort: Desc)])
+  @@index([chapterId])
+  @@map("reading_progress")
+}
+
+model RefreshSession {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("refresh_sessions")
+}
+
+model MediaAsset {
+  id         String    @id @db.VarChar(80)
+  ownerId    String    @map("owner_id") @db.Uuid
+  filename   String    @db.VarChar(255)
+  mimeType   String    @map("mime_type") @db.VarChar(80)
+  sizeBytes  Int       @map("size_bytes")
+  purpose    String    @db.VarChar(30)
+  status     String    @default("pending") @db.VarChar(20)
+  objectKey  String    @unique @map("object_key") @db.VarChar(500)
+  publicUrl  String    @map("public_url")
+  uploadedAt DateTime? @map("uploaded_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  owner      User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@map("media_assets")
+}
+
+model ModerationReport {
+  id         String    @id @default(uuid()) @db.Uuid
+  reporterId String?   @map("reporter_id") @db.Uuid
+  targetType String    @map("target_type") @db.VarChar(30)
+  targetId   String    @map("target_id") @db.VarChar(160)
+  reason     String    @db.VarChar(40)
+  details    String?   @db.VarChar(1000)
+  status     String    @default("pending") @db.VarChar(20)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  reporter   User?     @relation("ReportAuthor", fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([targetType, targetId])
+  @@map("moderation_reports")
 }

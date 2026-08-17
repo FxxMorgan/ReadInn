@@ -1,7 +1,9 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import crypto from 'node:crypto';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 import type { AppConfig } from './config/env.js';
 import { AppError } from './shared/errors.js';
@@ -12,12 +14,16 @@ import { registerReaderRoutes } from './modules/stories/reader-routes.js';
 import { registerAnalyticsRoutes } from './modules/stories/analytics-routes.js';
 import { registerModerationRoutes } from './modules/stories/moderation-routes.js';
 import { registerMediaRoutes } from './modules/media/routes.js';
-import { checkDatabaseConnection } from './shared/db.js';
+import { configureDatabase, probeDatabaseConnection } from './shared/db.js';
+import { configureAuth } from './shared/auth.js';
 import { contentCache } from './shared/content-cache.js';
 import { registerSocialRoutes } from './modules/social/routes.js';
 import { registerBulkImportRoutes } from './modules/stories/bulk-import-routes.js';
 
 export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
+  configureDatabase({ fixtureMode: config.READINN_FIXTURE_MODE });
+  const jwtSecret = config.JWT_SECRET ?? (config.READINN_FIXTURE_MODE ? 'readinn-fixture-secret-for-tests-only' : undefined);
+  configureAuth(jwtSecret ? { jwtSecret } : {});
   contentCache.configure({
     enabled: config.CACHE_ENABLED,
     directory: config.CACHE_DIR,
@@ -29,11 +35,12 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     },
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
+    trustProxy: config.TRUSTED_PROXY_IPS,
   });
 
   await app.register(helmet);
   await app.register(cors, {
-    origin: '*',
+    origin: [config.APP_WEB_URL],
     credentials: true,
   });
   await app.register(rateLimit, {
@@ -42,13 +49,14 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
 
   app.get('/health/live', () => ({ data: { status: 'ok' } }));
-  app.get('/health/ready', async () => {
-    const isDbConnected = await checkDatabaseConnection();
+  app.get('/health/ready', async (_request, reply) => {
+    const isDbConnected = await probeDatabaseConnection();
+    if (!isDbConnected) reply.status(503);
     return {
       data: {
-        status: 'ok',
+        status: isDbConnected ? 'ok' : 'unavailable',
         dependencies: {
-          database: isDbConnected ? 'connected' : 'fixture_fallback',
+          database: isDbConnected ? 'connected' : 'unavailable',
         },
       },
     };
@@ -83,6 +91,32 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
           message: 'La solicitud no cumple el formato esperado.',
           requestId: request.id,
           details: error.issues,
+        },
+      });
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return reply.status(409).send({
+        error: {
+          code: 'RESOURCE_CONFLICT',
+          message: 'El recurso ya existe o entra en conflicto con otro cambio.',
+          requestId: request.id,
+          details: [],
+        },
+      });
+    }
+
+    if (
+      error instanceof Prisma.PrismaClientInitializationError
+      || error instanceof Prisma.PrismaClientRustPanicError
+      || (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2024')
+    ) {
+      return reply.status(503).send({
+        error: {
+          code: 'DATABASE_UNAVAILABLE',
+          message: 'Servicio temporalmente no disponible.',
+          requestId: request.id,
+          details: [],
         },
       });
     }

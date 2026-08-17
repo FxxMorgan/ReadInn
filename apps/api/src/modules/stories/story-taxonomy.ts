@@ -101,6 +101,13 @@ function normalizeTaxonomyValue(value: string): string {
 const normalizedTagKind = new Map(
   STORY_TAGS.map((tag) => [normalizeTaxonomyValue(tag.name), tag.kind]),
 );
+const normalizedGenreName = new Map(
+  STORY_GENRES.map((genre) => [normalizeTaxonomyValue(genre), genre]),
+);
+
+export function storyGenreName(name: string): typeof STORY_GENRES[number] | null {
+  return normalizedGenreName.get(normalizeTaxonomyValue(name)) ?? null;
+}
 
 export function storyTagKind(name: string): StoryTagKind | null {
   return normalizedTagKind.get(normalizeTaxonomyValue(name)) ?? null;
@@ -118,6 +125,7 @@ const tagMinimumAgeEntries: Array<[string, StoryAgeRating]> = [
   ['Drogas', '16'],
   ['Temas maduros', '16'],
   ['Contenido sexual', '18'],
+  ['+18', '18'],
 ];
 const tagMinimumAge = new Map<string, StoryAgeRating>(
   tagMinimumAgeEntries.map(([tag, rating]) => [normalizeTaxonomyValue(tag), rating]),
@@ -160,7 +168,7 @@ export function storyTaxonomyResponse() {
     automaticAgeRules: [
       { tags: ['Violencia', 'Lenguaje fuerte', 'Horror psicológico', 'Terror sobrenatural', 'Contenido sensible'], minimum: '13' },
       { tags: ['Gore', 'Violencia gráfica', 'Drogas', 'Temas maduros'], minimum: '16' },
-      { tags: ['Contenido sexual'], minimum: '18' },
+      { tags: ['Contenido sexual', '+18'], minimum: '18' },
     ],
   };
 }

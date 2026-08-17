@@ -1,6 +1,8 @@
+import type { Prisma } from '@prisma/client';
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
 import { contentCache } from '../../shared/content-cache.js';
-import { chapterFixtures, storyFixtures, type Chapter, type StorySummary } from './story-fixtures.js';
+import { chapterIdentifier, storyIdentifier } from '../../shared/identifiers.js';
+import { chapterFixtures, storyFixtures, type StorySummary } from './story-fixtures.js';
 
 export interface GetStoriesParams {
   query?: string | undefined;
@@ -11,6 +13,7 @@ export interface GetStoriesParams {
   tagMode?: 'any' | 'all' | undefined;
   mature?: 'exclude' | 'include' | 'only' | undefined;
   ageRatings?: string[] | undefined;
+  creationMethod?: 'all' | 'human' | 'ai_assisted' | 'ai_generated' | undefined;
   language?: string | undefined;
   minChapters?: number | undefined;
   minRating?: number | undefined;
@@ -20,6 +23,33 @@ export interface GetStoriesParams {
 }
 
 export class StoryRepository {
+  async getSitemapStories() {
+    if (!(await checkDatabaseConnection())) {
+      return storyFixtures
+        .filter((story) => story.status === 'published' || story.status === 'completed')
+        .map((story) => ({
+          id: story.id,
+          authorUsername: story.authorUsername,
+          ...(story.updatedAt ? { updatedAt: story.updatedAt } : {}),
+        }));
+    }
+    const stories = await prisma.story.findMany({
+      where: { status: { in: ['published', 'completed'] } },
+      orderBy: { updatedAt: 'desc' },
+      take: 50_000,
+      select: {
+        id: true,
+        updatedAt: true,
+        author: { select: { username: true } },
+      },
+    });
+    return stories.map((story) => ({
+      id: story.id,
+      authorUsername: story.author.username,
+      updatedAt: story.updatedAt.toISOString(),
+    }));
+  }
+
   async getStories(params: GetStoriesParams) {
     const normalized = {
       query: params.query?.trim().toLocaleLowerCase('es') ?? '',
@@ -30,6 +60,7 @@ export class StoryRepository {
       tagMode: params.tagMode ?? 'any',
       mature: params.mature ?? 'exclude',
       ageRatings: (params.ageRatings ?? []).sort(),
+      creationMethod: params.creationMethod ?? 'all',
       language: params.language?.trim().toLocaleLowerCase('es') ?? '',
       minChapters: params.minChapters ?? 0,
       minRating: params.minRating ?? 0,
@@ -37,14 +68,16 @@ export class StoryRepository {
       page: params.page ?? 1,
       limit: params.limit ?? 20,
     };
+    const loader = () => this.getStoriesUncached(normalized);
+    if (normalized.query || normalized.page > 5) return loader();
     return contentCache.remember(
       `stories:${JSON.stringify(normalized)}`,
       ['catalog'],
-      () => this.getStoriesUncached({ ...params, sort: normalized.sort }),
+      loader,
     );
   }
 
-  private async getStoriesUncached({ query, genre, genres = [], tags = [], genreMode = 'any', tagMode = 'any', mature = 'exclude', ageRatings = [], language, minChapters = 0, minRating = 0, sort = 'recent', page = 1, limit = 20 }: GetStoriesParams) {
+  private async getStoriesUncached({ query, genre, genres = [], tags = [], genreMode = 'any', tagMode = 'any', mature = 'exclude', ageRatings = [], creationMethod = 'all', language, minChapters = 0, minRating = 0, sort = 'recent', page = 1, limit = 20 }: GetStoriesParams) {
     const isDbConnected = await checkDatabaseConnection();
 
     if (!isDbConnected) {
@@ -56,6 +89,7 @@ export class StoryRepository {
         if (mature === 'exclude' && story.isMature) return false;
         if (mature === 'only' && !story.isMature) return false;
         if (ageRatings.length && !ageRatings.includes(story.ageRating ?? (story.isMature ? '18' : 'all'))) return false;
+        if (creationMethod !== 'all' && (story.creationMethod ?? 'human') !== creationMethod) return false;
         const storyGenres = (story.genres ?? [story.genre]).map((value) => value.toLocaleLowerCase('es'));
         const matchesGenre = !selectedGenres.length || (genreMode === 'all'
           ? selectedGenres.every((value) => storyGenres.includes(value.toLocaleLowerCase('es')))
@@ -85,13 +119,15 @@ export class StoryRepository {
     }
 
     // Query real PostgreSQL DB via Prisma
-    const where: any = {
+    const where: Prisma.StoryWhereInput = {
       status: 'published',
     };
+    const andFilters: Prisma.StoryWhereInput[] = [];
 
     if (mature === 'exclude') where.isMature = false;
     if (mature === 'only') where.isMature = true;
     if (ageRatings.length) where.ageRating = { in: ageRatings };
+    if (creationMethod !== 'all') where.creationMethod = creationMethod;
     if (language) where.languageCode = language;
     if (minChapters > 0) where.publishedChapterCount = { gte: minChapters };
 
@@ -109,36 +145,44 @@ export class StoryRepository {
 
     const selectedGenres = [...new Set([...(genre ? [genre] : []), ...genres])].filter((value) => value && value !== 'Todos' && value !== 'Todo');
     if (selectedGenres.length) {
-      where.genres = genreMode === 'all'
-        ? undefined
-        : { some: { genre: { name: { in: selectedGenres, mode: 'insensitive' } } } };
       if (genreMode === 'all') {
-        where.AND = [
-          ...(where.AND ?? []),
-          ...selectedGenres.map((name) => ({
-            genres: { some: { genre: { name: { equals: name, mode: 'insensitive' } } } },
-          })),
-        ];
+        andFilters.push(...selectedGenres.map((name) => ({
+          genres: { some: { genre: { name: { equals: name, mode: 'insensitive' as const } } } },
+        })));
+      } else {
+        where.genres = { some: { genre: { name: { in: selectedGenres, mode: 'insensitive' } } } };
       }
     }
     if (tags.length) {
-      where.tags = tagMode === 'all'
-        ? undefined
-        : { some: { tag: { name: { in: tags, mode: 'insensitive' } } } };
       if (tagMode === 'all') {
-        where.AND = [
-          ...(where.AND ?? []),
-          ...tags.map((name) => ({
-            tags: { some: { tag: { name: { equals: name, mode: 'insensitive' } } } },
-          })),
-        ];
+        andFilters.push(...tags.map((name) => ({
+          tags: { some: { tag: { name: { equals: name, mode: 'insensitive' as const } } } },
+        })));
+      } else {
+        where.tags = { some: { tag: { name: { in: tags, mode: 'insensitive' } } } };
       }
     }
 
-    const stories = await prisma.story.findMany({
+    if (andFilters.length) where.AND = andFilters;
+
+    if (minRating > 0) where.averageRating = { gte: minRating };
+
+    const orderBy: Prisma.StoryOrderByWithRelationInput[] = sort === 'title'
+      ? [{ title: 'asc' }]
+      : sort === 'chapters'
+        ? [{ publishedChapterCount: 'desc' }, { publishedAt: 'desc' }]
+        : sort === 'rating'
+          ? [{ averageRating: 'desc' }, { ratingCount: 'desc' }]
+          : sort === 'popular'
+            ? [{ readCount: 'desc' }, { publishedAt: 'desc' }]
+            : [{ publishedAt: 'desc' }];
+
+    const [stories, total] = await prisma.$transaction([
+      prisma.story.findMany({
         where,
-        take: 5000,
-        orderBy: { publishedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy,
         include: {
           author: {
             include: { profile: true },
@@ -150,31 +194,13 @@ export class StoryRepository {
             include: { tag: true },
           },
         },
-      });
-
-    const ratingGroups = stories.length
-      ? await prisma.storyRating.groupBy({
-          by: ['storyId'],
-          where: { storyId: { in: stories.map((story) => story.id) } },
-          _avg: { rating: true },
-          _count: { _all: true },
-        })
-      : [];
-    const ratingsByStory = new Map(
-      ratingGroups.map((group) => [
-        group.storyId,
-        {
-          averageRating: group._avg.rating ?? 0,
-          ratingCount: group._count._all,
-        },
-      ]),
-    );
+      }),
+      prisma.story.count({ where }),
+    ]);
 
     const data: StorySummary[] = stories.map((story) => {
       const primaryGenre = story.genres[0]?.genre.name ?? 'General';
       const authorName = story.attributionName ?? story.author.profile?.displayName ?? story.author.username;
-      const rating = ratingsByStory.get(story.id);
-      
       return {
         id: story.id,
         title: story.title,
@@ -186,37 +212,21 @@ export class StoryRepository {
         tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
         languageCode: story.languageCode,
         ageRating: story.ageRating as NonNullable<StorySummary['ageRating']>,
-        status: story.status as any,
+        creationMethod: story.creationMethod,
+        status: story.status,
         chapterCount: story.publishedChapterCount,
         isMature: story.isMature,
         coverColor: story.coverUrl ?? '#855300',
-        averageRating: rating?.averageRating ?? 0,
-        ratingCount: rating?.ratingCount ?? 0,
+        averageRating: story.averageRating,
+        ratingCount: story.ratingCount,
         updatedAt: story.updatedAt.toISOString(),
         ...(story.sourceUrl ? { sourceUrl: story.sourceUrl } : {}),
         ...(story.sourceLicense ? { sourceLicense: story.sourceLicense } : {}),
       };
     });
 
-    const popularityGroups = stories.length ? await prisma.readingEvent.groupBy({
-      by: ['storyId'],
-      where: { storyId: { in: stories.map((story) => story.id) } },
-      _count: { _all: true },
-    }) : [];
-    const popularityByStory = new Map(popularityGroups.map((group) => [group.storyId, group._count._all]));
-    data.sort((a, b) => {
-      if (sort === 'title') return a.title.localeCompare(b.title, 'es');
-      if (sort === 'chapters') return b.chapterCount - a.chapterCount;
-      if (sort === 'rating') return (b.averageRating ?? 0) - (a.averageRating ?? 0);
-      if (sort === 'popular') return (popularityByStory.get(b.id) ?? 0) - (popularityByStory.get(a.id) ?? 0);
-      return (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '');
-    });
-    const filteredData = data.filter((story) => (story.averageRating ?? 0) >= minRating);
-    const total = filteredData.length;
-    const pagedData = filteredData.slice((page - 1) * limit, page * limit);
-
     return {
-      data: pagedData,
+      data,
       meta: {
         page,
         limit,
@@ -230,7 +240,7 @@ export class StoryRepository {
   async getFeaturedStory() {
     const day = new Date().toISOString().slice(0, 10);
     return contentCache.remember(`featured:${day}`, ['catalog'], async () => {
-      const result = await this.getStories({ sort: 'rating', page: 1, limit: 5000, mature: 'exclude' });
+      const result = await this.getStories({ sort: 'popular', page: 1, limit: 1, mature: 'exclude' });
       if (!result.data.length || !(await checkDatabaseConnection())) return result.data[0] ?? null;
       const events = await prisma.readingEvent.findMany({
         where: {
@@ -321,7 +331,7 @@ export class StoryRepository {
     const story = await prisma.story.findFirst({
       where: {
         status: 'published',
-        OR: [{ id: storyId }, { slug: storyId }],
+        ...storyIdentifier(storyId),
       },
       include: {
         author: {
@@ -362,6 +372,7 @@ export class StoryRepository {
       tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
       languageCode: story.languageCode,
       ageRating: story.ageRating,
+      creationMethod: story.creationMethod,
       status: story.status,
       chapterCount: story.chapters.length,
       isMature: story.isMature,
@@ -413,8 +424,8 @@ export class StoryRepository {
     const chapter = await prisma.chapter.findFirst({
       where: {
         status: 'published',
-        story: { status: 'published' },
-        OR: [{ id: chapterId }, { slug: chapterId }],
+        story: { status: 'published', ...storyIdentifier(storyId) },
+        ...chapterIdentifier(chapterId),
       },
       include: {
         story: {
@@ -427,7 +438,7 @@ export class StoryRepository {
 
     let content: string[] = [];
     if (Array.isArray(chapter.contentJson)) {
-      content = chapter.contentJson.map((item) => String(item));
+      content = chapter.contentJson.map((item) => typeof item === 'string' ? item : JSON.stringify(item) ?? '');
     } else {
       content = [chapter.plainText];
     }

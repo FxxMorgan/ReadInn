@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
 import { storyFixtures } from './story-fixtures.js';
 import { bearerClaims } from '../../shared/auth.js';
+import { requireUser, resolveActiveUser } from '../../shared/auth-guards.js';
+import { chapterIdentifier, isUuid, storyIdentifier } from '../../shared/identifiers.js';
+import { AppError } from '../../shared/errors.js';
 
 const progressSchema = z.object({
   storyId: z.string(),
@@ -11,26 +14,28 @@ const progressSchema = z.object({
   progressPercentage: z.number().min(0).max(100),
   lastPosition: z.number().optional(),
   isCompleted: z.boolean().optional(),
-  seenChapterIds: z.array(z.string()).optional(),
+  seenChapterIds: z.array(z.string().trim().min(1).max(150)).max(500).optional(),
 });
 
 const commentSchema = z.object({
   body: z.string().trim().min(1).max(1000),
-  authorName: z.string().trim().min(1).max(80).optional(),
   paragraphIndex: z.number().int().min(0).optional(),
   parentCommentId: z.string().min(1).optional(),
-});
+}).strict();
 
 const commentListQuerySchema = z.object({
   includeHidden: z.enum(['true', 'false', '1', '0']).optional()
     .transform((value) => value === 'true' || value === '1'),
-});
+  cursor: z.string().trim().min(1).max(160).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+}).strict();
 
 const commentVoteSchema = z.object({
   value: z.union([z.literal(-1), z.literal(0), z.literal(1)]),
 });
 
 const NEGATIVE_COMMENT_THRESHOLD = 3;
+const MAX_COMMENT_DEPTH = 8;
 const HIDDEN_COMMENT_MESSAGE = 'Comentario oculto por negatividad';
 
 // In-memory fallback state is keyed by user so one account never sees another
@@ -49,6 +54,7 @@ type MockComment = {
   createdAt: string;
   likes: number;
   downvotes: number;
+  depth: number;
   paragraphIndex?: number;
   parentCommentId?: string;
 };
@@ -64,6 +70,7 @@ const mockComments: MockComment[] = [
     createdAt: new Date().toISOString(),
     likes: 4,
     downvotes: 0,
+    depth: 0,
   },
   {
     id: 'comment-lighthouse-2',
@@ -75,6 +82,7 @@ const mockComments: MockComment[] = [
     createdAt: new Date().toISOString(),
     likes: 2,
     downvotes: 0,
+    depth: 0,
   },
 ];
 
@@ -124,19 +132,26 @@ export function registerReaderRoutes(app: FastifyInstance): void {
     async (request) => {
       const { storyId, chapterId } = request.params;
       const query = commentListQuerySchema.parse(request.query);
-      const viewerId = authenticatedUserId(request);
+      const viewer = await resolveActiveUser(request);
+      if (query.includeHidden && !viewer?.isAdmin) {
+        throw new AppError('ADMIN_REQUIRED', 'Requiere permisos de administrador.', 403);
+      }
+      const viewerId = viewer?.id ?? null;
       const isFixture = storyFixtures.some((story) => story.id === storyId);
       if (!isFixture && await checkDatabaseConnection()) {
         const comments = await prisma.chapterComment.findMany({
           where: { storyId, chapterId },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: query.limit + 1,
+          ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
           include: {
             author: { include: { profile: true } },
             votes: viewerId ? { where: { userId: viewerId }, select: { value: true } } : false,
           },
         });
+        const page = comments.slice(0, query.limit);
         return {
-          data: comments.map((comment) => {
+          data: page.map((comment) => {
             const isHidden = comment.downvotes >= NEGATIVE_COMMENT_THRESHOLD;
             return {
               id: comment.id,
@@ -154,24 +169,46 @@ export function registerReaderRoutes(app: FastifyInstance): void {
               score: comment.likes - comment.downvotes,
               currentVote: viewerId ? comment.votes[0]?.value ?? 0 : 0,
               isHidden,
+              depth: comment.depth,
               ...(comment.parentId ? { parentCommentId: comment.parentId } : {}),
               ...(comment.paragraphIndex !== null ? { paragraphIndex: comment.paragraphIndex } : {}),
             };
           }),
+          meta: {
+            nextCursor: comments.length > query.limit ? page.at(-1)?.id ?? null : null,
+          },
         };
       }
+      const fixtureComments = mockComments
+        .filter((comment) => comment.storyId === storyId && comment.chapterId === chapterId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const cursorIndex = query.cursor
+        ? fixtureComments.findIndex((comment) => comment.id === query.cursor)
+        : -1;
+      const pageStart = cursorIndex >= 0 ? cursorIndex + 1 : 0;
+      const page = fixtureComments.slice(pageStart, pageStart + query.limit);
       return {
-        data: mockComments
-          .filter((comment) => comment.storyId === storyId && comment.chapterId === chapterId)
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-          .map((comment) => presentMockComment(comment, viewerId, query.includeHidden)),
+        data: page.map((comment) => presentMockComment(comment, viewerId, query.includeHidden)),
+        meta: {
+          nextCursor: fixtureComments.length > pageStart + query.limit ? page.at(-1)?.id ?? null : null,
+        },
       };
     }
   );
 
   app.post<{ Params: { storyId: string; chapterId: string } }>(
     '/v1/stories/:storyId/chapters/:chapterId/comments',
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+          keyGenerator: (request) => authenticatedUserId(request) ?? request.ip,
+        },
+      },
+    },
     async (request, reply) => {
+      const authenticated = await requireUser(request);
       const body = commentSchema.parse(request.body);
       const isFixture = storyFixtures.some((story) => story.id === request.params.storyId);
       if (!isFixture && await checkDatabaseConnection()) {
@@ -195,7 +232,7 @@ export function registerReaderRoutes(app: FastifyInstance): void {
                 storyId: request.params.storyId,
                 chapterId: request.params.chapterId,
               },
-              select: { id: true, paragraphIndex: true },
+              select: { id: true, paragraphIndex: true, depth: true },
             })
           : null;
         if (body.parentCommentId && !parent) {
@@ -206,22 +243,28 @@ export function registerReaderRoutes(app: FastifyInstance): void {
             },
           });
         }
+        if (parent && parent.depth >= MAX_COMMENT_DEPTH) {
+          throw new AppError(
+            'COMMENT_DEPTH_EXCEEDED',
+            `Los comentarios admiten hasta ${MAX_COMMENT_DEPTH} niveles de respuesta.`,
+            422,
+          );
+        }
         const paragraphIndex = body.paragraphIndex ?? parent?.paragraphIndex ?? undefined;
-        const userId = authenticatedUserId(request);
-        const author = userId
-          ? await prisma.user.findUnique({
-              where: { id: userId },
-              include: { profile: true },
-            }).catch(() => null)
-          : null;
+        const author = await prisma.user.findUnique({
+          where: { id: authenticated.id },
+          include: { profile: true },
+        });
+        if (!author) throw new AppError('AUTH_REQUIRED', 'La sesion ya no es valida.', 401);
         const comment = await prisma.chapterComment.create({
           data: {
             storyId: request.params.storyId,
             chapterId: request.params.chapterId,
-            ...(author ? { authorId: author.id } : {}),
+            authorId: author.id,
             ...(parent ? { parentId: parent.id } : {}),
-            authorName: author?.profile?.displayName ?? body.authorName ?? 'Invitado',
+            authorName: author.profile?.displayName ?? author.username,
             body: body.body,
+            depth: parent ? parent.depth + 1 : 0,
             ...(paragraphIndex !== undefined ? { paragraphIndex } : {}),
           },
           include: { author: true },
@@ -243,6 +286,7 @@ export function registerReaderRoutes(app: FastifyInstance): void {
             score: comment.likes - comment.downvotes,
             currentVote: 0,
             isHidden: false,
+            depth: comment.depth,
             ...(comment.parentId ? { parentCommentId: comment.parentId } : {}),
             ...(comment.paragraphIndex !== null ? { paragraphIndex: comment.paragraphIndex } : {}),
           },
@@ -262,19 +306,27 @@ export function registerReaderRoutes(app: FastifyInstance): void {
           },
         });
       }
+      if (parent && parent.depth >= MAX_COMMENT_DEPTH) {
+        throw new AppError(
+          'COMMENT_DEPTH_EXCEEDED',
+          `Los comentarios admiten hasta ${MAX_COMMENT_DEPTH} niveles de respuesta.`,
+          422,
+        );
+      }
       const paragraphIndex = body.paragraphIndex ?? parent?.paragraphIndex;
-      const authorUsername = bearerClaims(request.headers.authorization)?.email?.split('@')[0];
+      const authorUsername = authenticated.email?.split('@')[0];
       const comment: MockComment = {
         id: `comment-${crypto.randomUUID()}`,
         storyId: request.params.storyId,
         chapterId: request.params.chapterId,
-        authorId: requestUserId(request),
-        authorName: body.authorName ?? 'Invitado',
+        authorId: authenticated.id,
+        authorName: authorUsername ?? 'Usuario',
         ...(authorUsername ? { authorUsername } : {}),
         body: body.body,
         createdAt: new Date().toISOString(),
         likes: 0,
         downvotes: 0,
+        depth: parent ? parent.depth + 1 : 0,
         ...(parent ? { parentCommentId: parent.id } : {}),
         ...(paragraphIndex !== undefined ? { paragraphIndex } : {}),
       };
@@ -386,11 +438,29 @@ export function registerReaderRoutes(app: FastifyInstance): void {
   );
 
   app.post<{ Params: { storyId: string } }>('/v1/stories/:storyId/like', async (request) => {
-    const key = `${requestUserId(request)}:${request.params.storyId}`;
-    const liked = mockLikes.has(key);
-    if (liked) mockLikes.delete(key);
-    else mockLikes.add(key);
-    return { data: { storyId: request.params.storyId, liked: !liked } };
+    const user = await requireUser(request);
+    if (!(await checkDatabaseConnection())) {
+      const key = `${user.id}:${request.params.storyId}`;
+      const liked = mockLikes.has(key);
+      if (liked) mockLikes.delete(key);
+      else mockLikes.add(key);
+      return { data: { storyId: request.params.storyId, liked: !liked } };
+    }
+
+    const story = await prisma.story.findFirst({
+      where: storyIdentifier(request.params.storyId),
+      select: { id: true },
+    });
+    if (!story) throw new AppError('STORY_NOT_FOUND', 'No se encontro la obra.', 404);
+    const existing = await prisma.storyLike.findUnique({
+      where: { userId_storyId: { userId: user.id, storyId: story.id } },
+    });
+    if (existing) {
+      await prisma.storyLike.delete({ where: { userId_storyId: { userId: user.id, storyId: story.id } } });
+    } else {
+      await prisma.storyLike.create({ data: { userId: user.id, storyId: story.id } });
+    }
+    return { data: { storyId: story.id, liked: !existing } };
   });
 
   app.get<{ Params: { storyId: string } }>('/v1/stories/:storyId/engagement', async (request) => {
@@ -402,7 +472,7 @@ export function registerReaderRoutes(app: FastifyInstance): void {
         where: { id: request.params.storyId },
         select: { authorId: true },
       });
-      const [ratings, userRating, reads, comments, followers] = await Promise.all([
+      const [ratings, userRating, reads, comments, followers, liked, saved] = await Promise.all([
         prisma.storyRating.aggregate({
           where: { storyId: request.params.storyId },
           _avg: { rating: true },
@@ -419,6 +489,8 @@ export function registerReaderRoutes(app: FastifyInstance): void {
         }),
         prisma.chapterComment.count({ where: { storyId: request.params.storyId } }),
         story ? prisma.userFollow.count({ where: { followingId: story.authorId } }) : 0,
+        userId ? prisma.storyLike.findUnique({ where: { userId_storyId: { userId, storyId: request.params.storyId } } }) : null,
+        userId ? prisma.bookmark.findUnique({ where: { userId_storyId: { userId, storyId: request.params.storyId } } }) : null,
       ]);
       return {
         data: {
@@ -429,10 +501,8 @@ export function registerReaderRoutes(app: FastifyInstance): void {
           averageRating: ratings._avg.rating ?? 0,
           ratingCount: ratings._count._all,
           userRating: userRating?.rating ?? 0,
-          liked: mockLikes.has(`${requestUserId(request)}:${request.params.storyId}`),
-          saved: mockLibraryKeys.has(
-            libraryKey(requestUserId(request), request.params.storyId),
-          ),
+          liked: Boolean(liked),
+          saved: Boolean(saved),
         },
       };
     }
@@ -457,49 +527,71 @@ export function registerReaderRoutes(app: FastifyInstance): void {
     };
   });
 
-  app.post<{ Params: { storyId: string } }>('/v1/stories/:storyId/rating', async (request, reply) => {
+  app.post<{ Params: { storyId: string } }>('/v1/stories/:storyId/rating', async (request) => {
     const body = z.object({ rating: z.number().int().min(0).max(5) }).parse(request.body);
+    const user = await requireUser(request);
     const isFixture = storyFixtures.some((story) => story.id === request.params.storyId);
     const isDbConnected = await checkDatabaseConnection();
     if (isDbConnected && !isFixture) {
-      const userId = authenticatedUserId(request);
-      if (!userId) {
-        return reply.status(401).send({
-          error: { code: 'AUTH_REQUIRED', message: 'Inicia sesion para calificar una obra.' },
+      const story = await prisma.story.findFirst({ where: storyIdentifier(request.params.storyId), select: { id: true } });
+      if (!story) throw new AppError('STORY_NOT_FOUND', 'No se encontro la obra.', 404);
+      await prisma.$transaction(async (tx) => {
+        if (body.rating === 0) {
+          await tx.storyRating.deleteMany({ where: { storyId: story.id, userId: user.id } });
+        } else {
+          await tx.storyRating.upsert({
+            where: { storyId_userId: { storyId: story.id, userId: user.id } },
+            create: { storyId: story.id, userId: user.id, rating: body.rating },
+            update: { rating: body.rating },
+          });
+        }
+        const aggregate = await tx.storyRating.aggregate({
+          where: { storyId: story.id },
+          _avg: { rating: true },
+          _count: { _all: true },
         });
-      }
-      if (body.rating === 0) {
-        await prisma.storyRating.deleteMany({
-          where: { storyId: request.params.storyId, userId },
+        await tx.story.update({
+          where: { id: story.id },
+          data: { averageRating: aggregate._avg.rating ?? 0, ratingCount: aggregate._count._all },
         });
-      } else {
-        await prisma.storyRating.upsert({
-          where: { storyId_userId: { storyId: request.params.storyId, userId } },
-          create: { storyId: request.params.storyId, userId, rating: body.rating },
-          update: { rating: body.rating },
-        });
-      }
-      return { data: { storyId: request.params.storyId, rating: body.rating } };
+      });
+      return { data: { storyId: story.id, rating: body.rating } };
     }
 
     const storyRatings = mockRatings.get(request.params.storyId) ?? new Map<string, number>();
-    if (body.rating === 0) storyRatings.delete(requestUserId(request));
-    else storyRatings.set(requestUserId(request), body.rating);
+    if (body.rating === 0) storyRatings.delete(user.id);
+    else storyRatings.set(user.id, body.rating);
     mockRatings.set(request.params.storyId, storyRatings);
     return { data: { storyId: request.params.storyId, rating: body.rating } };
   });
 
   app.post<{ Params: { authorId: string } }>('/v1/follows/:authorId', async (request) => {
-    const key = `${requestUserId(request)}:${request.params.authorId}`;
-    if (mockFollowers.has(key)) mockFollowers.delete(key);
-    else mockFollowers.add(key);
-    return { data: { authorId: request.params.authorId, following: mockFollowers.has(key) } };
+    const user = await requireUser(request);
+    if (!(await checkDatabaseConnection())) {
+      const key = `${user.id}:${request.params.authorId}`;
+      if (mockFollowers.has(key)) mockFollowers.delete(key);
+      else mockFollowers.add(key);
+      return { data: { authorId: request.params.authorId, following: mockFollowers.has(key) } };
+    }
+    if (!isUuid(request.params.authorId)) throw new AppError('USER_NOT_FOUND', 'No se encontro el usuario.', 404);
+    const target = await prisma.user.findFirst({
+      where: { id: request.params.authorId, accountStatus: 'active', deletedAt: null },
+      select: { id: true },
+    });
+    if (!target) throw new AppError('USER_NOT_FOUND', 'No se encontro el usuario.', 404);
+    if (target.id === user.id) throw new AppError('SELF_FOLLOW', 'No puedes seguir tu propio perfil.', 400);
+    const where = { followerId_followingId: { followerId: user.id, followingId: target.id } };
+    const existing = await prisma.userFollow.findUnique({ where });
+    if (existing) await prisma.userFollow.delete({ where });
+    else await prisma.userFollow.create({ data: { followerId: user.id, followingId: target.id } });
+    return { data: { authorId: target.id, following: !existing } };
   });
 
   // Toggle story in personal library
   app.post<{ Params: { storyId: string } }>('/v1/library/:storyId', async (request) => {
+    const user = await requireUser(request);
     const { storyId } = request.params;
-    const userId = requestUserId(request);
+    const userId = user.id;
     const key = libraryKey(userId, storyId);
     const isDbConnected = await checkDatabaseConnection();
 
@@ -513,18 +605,19 @@ export function registerReaderRoutes(app: FastifyInstance): void {
       return { data: { saved: !isSaved, storyId } };
     }
 
-    if (mockLibraryKeys.has(key)) {
-      mockLibraryKeys.delete(key);
-    } else {
-      mockLibraryKeys.add(key);
-    }
-
-    return { data: { saved: mockLibraryKeys.has(key), storyId } };
+    const story = await prisma.story.findFirst({ where: storyIdentifier(storyId), select: { id: true } });
+    if (!story) throw new AppError('STORY_NOT_FOUND', 'No se encontro la obra.', 404);
+    const bookmarkWhere = { userId_storyId: { userId, storyId: story.id } };
+    const existing = await prisma.bookmark.findUnique({ where: bookmarkWhere });
+    if (existing) await prisma.bookmark.delete({ where: bookmarkWhere });
+    else await prisma.bookmark.create({ data: { userId, storyId: story.id } });
+    return { data: { saved: !existing, storyId: story.id } };
   });
 
   // Get saved stories in library
   app.get('/v1/library', async (request) => {
-    const userId = requestUserId(request);
+    const user = await requireUser(request);
+    const userId = user.id;
     const savedIds = Array.from(mockLibraryKeys)
       .filter((key) => key.startsWith(`${userId}:`))
       .map((key) => key.slice(userId.length + 1));
@@ -535,18 +628,13 @@ export function registerReaderRoutes(app: FastifyInstance): void {
       return { data: savedStories };
     }
 
-    const stories = await prisma.story.findMany({
-      where: {
-        id: { in: savedIds },
-      },
-      include: {
-        author: { include: { profile: true } },
-        genres: { include: { genre: true } },
-        tags: { include: { tag: true } },
-      },
+    const bookmarks = await prisma.bookmark.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: { story: { include: { author: { include: { profile: true } }, genres: { include: { genre: true } }, tags: { include: { tag: true } } } } },
     });
 
-    const data = stories.map((story) => ({
+    const data = bookmarks.map(({ story }) => ({
       id: story.id,
       title: story.title,
       author: story.attributionName ?? story.author.profile?.displayName ?? story.author.username,
@@ -557,6 +645,7 @@ export function registerReaderRoutes(app: FastifyInstance): void {
       tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
       languageCode: story.languageCode,
       ageRating: story.ageRating,
+      creationMethod: story.creationMethod,
       status: story.status,
       chapterCount: story.publishedChapterCount,
       isMature: story.isMature,
@@ -569,7 +658,44 @@ export function registerReaderRoutes(app: FastifyInstance): void {
   // Save reading progress
   app.post('/v1/reading-progress', async (request) => {
     const body = progressSchema.parse(request.body);
-    const userId = requestUserId(request);
+    const user = await requireUser(request);
+    const userId = user.id;
+    const connected = await checkDatabaseConnection();
+    if (connected) {
+      if (body.seenChapterIds?.some((id) => !isUuid(id))) {
+        throw new AppError('INVALID_PROGRESS', 'Los identificadores de progreso no son validos.', 422);
+      }
+      const story = await prisma.story.findFirst({ where: storyIdentifier(body.storyId), select: { id: true } });
+      if (!story) throw new AppError('STORY_NOT_FOUND', 'No se encontro la obra.', 404);
+      const chapter = await prisma.chapter.findFirst({
+        where: { ...chapterIdentifier(body.chapterId), storyId: story.id },
+        select: { id: true },
+      });
+      if (!chapter) throw new AppError('CHAPTER_NOT_FOUND', 'No se encontro el capitulo.', 404);
+      const current = await prisma.readingProgress.findUnique({ where: { userId_storyId: { userId, storyId: story.id } } });
+      const seenChapterIds = [...new Set([...(current?.seenChapterIds ?? []), ...(body.seenChapterIds ?? []), chapter.id])];
+      const progress = await prisma.readingProgress.upsert({
+        where: { userId_storyId: { userId, storyId: story.id } },
+        create: {
+          userId,
+          storyId: story.id,
+          chapterId: chapter.id,
+          progressPercentage: body.progressPercentage,
+          ...(body.lastPosition !== undefined ? { lastPosition: body.lastPosition } : {}),
+          isCompleted: body.isCompleted ?? body.progressPercentage >= 100,
+          seenChapterIds,
+        },
+        update: {
+          chapterId: chapter.id,
+          progressPercentage: body.progressPercentage,
+          ...(body.lastPosition !== undefined ? { lastPosition: body.lastPosition } : {}),
+          isCompleted: body.isCompleted ?? body.progressPercentage >= 100,
+          seenChapterIds,
+        },
+      });
+      return { data: { success: true, storyId: progress.storyId, chapterId: progress.chapterId, progressPercentage: progress.progressPercentage, lastPosition: progress.lastPosition, isCompleted: progress.isCompleted, seenChapterIds: progress.seenChapterIds, updatedAt: progress.updatedAt.toISOString() } };
+    }
+
     const key = libraryKey(userId, body.storyId);
     const previous = mockProgress[key];
     const seenChapterIds = Array.from(
@@ -588,7 +714,16 @@ export function registerReaderRoutes(app: FastifyInstance): void {
 
   // Get continue reading list
   app.get('/v1/reading-progress', async (request) => {
-    const userId = requestUserId(request);
+    const user = await requireUser(request);
+    const userId = user.id;
+    if (await checkDatabaseConnection()) {
+      const progress = await prisma.readingProgress.findMany({
+        where: { userId },
+        orderBy: { updatedAt: 'desc' },
+        include: { story: { select: { id: true, title: true, coverUrl: true } } },
+      });
+      return { data: progress.map((item) => ({ storyId: item.storyId, storyTitle: item.story.title, coverColor: item.story.coverUrl ?? '#855300', chapterId: item.chapterId, progressPercentage: item.progressPercentage, lastPosition: item.lastPosition, isCompleted: item.isCompleted, seenChapterIds: item.seenChapterIds, updatedAt: item.updatedAt.toISOString() })) };
+    }
     const items = Object.entries(mockProgress)
       .filter(([key]) => key.startsWith(`${userId}:`))
       .map(([key, info]) => {
@@ -610,8 +745,15 @@ export function registerReaderRoutes(app: FastifyInstance): void {
   });
 
   app.get<{ Params: { storyId: string } }>('/v1/stories/:storyId/reading-progress', async (request) => {
+    const user = await requireUser(request);
+    if (await checkDatabaseConnection()) {
+      const story = await prisma.story.findFirst({ where: storyIdentifier(request.params.storyId), select: { id: true } });
+      if (!story) throw new AppError('STORY_NOT_FOUND', 'No se encontro la obra.', 404);
+      const progress = await prisma.readingProgress.findUnique({ where: { userId_storyId: { userId: user.id, storyId: story.id } } });
+      return { data: progress ? { storyId: progress.storyId, chapterId: progress.chapterId, progressPercentage: progress.progressPercentage, lastPosition: progress.lastPosition, isCompleted: progress.isCompleted, seenChapterIds: progress.seenChapterIds, updatedAt: progress.updatedAt.toISOString() } : null };
+    }
     const info = mockProgress[
-      libraryKey(requestUserId(request), request.params.storyId)
+      libraryKey(user.id, request.params.storyId)
     ];
     return { data: info ? { storyId: request.params.storyId, ...info } : null };
   });

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 interface CacheRecord<T> {
@@ -16,6 +16,7 @@ interface CacheOptions {
 }
 
 class ContentCache {
+  private static readonly MAX_MEMORY_ENTRIES = 500;
   private options: CacheOptions = {
     enabled: true,
     directory: path.resolve('.cache/readinn'),
@@ -37,23 +38,28 @@ class ContentCache {
   ): Promise<T> {
     if (!this.options.enabled) return loader();
     const now = Date.now();
+    this.pruneMemory(now);
     const memoryRecord = this.memory.get(key) as CacheRecord<T> | undefined;
-    if (memoryRecord && memoryRecord.expiresAt > now) return memoryRecord.value;
+    if (memoryRecord && memoryRecord.expiresAt > now) {
+      this.setMemory(key, memoryRecord);
+      return memoryRecord.value;
+    }
 
     const diskRecord = await this.read<T>(key);
     if (diskRecord && diskRecord.expiresAt > now) {
-      this.memory.set(key, diskRecord);
+      this.setMemory(key, diskRecord);
       return diskRecord.value;
     }
 
     const value = await loader();
+    if (value === null || value === undefined) return value;
     const record: CacheRecord<T> = {
       key,
       tags: [...new Set(tags)],
-      expiresAt: now + ttlSeconds * 1000,
+      expiresAt: Date.now() + ttlSeconds * 1000,
       value,
     };
-    this.memory.set(key, record);
+    this.setMemory(key, record);
     await this.write(record);
     return value;
   }
@@ -86,6 +92,22 @@ class ContentCache {
     return path.join(this.options.directory, `${crypto.createHash('sha256').update(key).digest('hex')}.json`);
   }
 
+  private setMemory(key: string, record: CacheRecord<unknown>): void {
+    this.memory.delete(key);
+    this.memory.set(key, record);
+    while (this.memory.size > ContentCache.MAX_MEMORY_ENTRIES) {
+      const oldest = this.memory.keys().next().value;
+      if (!oldest) break;
+      this.memory.delete(oldest);
+    }
+  }
+
+  private pruneMemory(now: number): void {
+    for (const [key, record] of this.memory) {
+      if (record.expiresAt <= now) this.memory.delete(key);
+    }
+  }
+
   private async read<T>(key: string): Promise<CacheRecord<T> | null> {
     try {
       const record = JSON.parse(await readFile(this.filename(key), 'utf8')) as CacheRecord<T>;
@@ -103,7 +125,10 @@ class ContentCache {
   private async write<T>(record: CacheRecord<T>): Promise<void> {
     try {
       await mkdir(this.options.directory, { recursive: true });
-      await writeFile(this.filename(record.key), JSON.stringify(record), 'utf8');
+      const target = this.filename(record.key);
+      const temporary = `${target}.${crypto.randomUUID()}.tmp`;
+      await writeFile(temporary, JSON.stringify(record), 'utf8');
+      await rename(temporary, target);
     } catch {
       // The database remains the source of truth when disk is unavailable.
     }

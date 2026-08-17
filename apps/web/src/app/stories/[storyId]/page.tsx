@@ -95,6 +95,13 @@ export default function StoryPage({ params }: { params: { storyId: string } }) {
       </div>
       <section>
         <span className="eyebrow">{story.genre} · {(story.ageRating ?? (story.isMature ? '18' : 'all')) === 'all' ? 'Todo público' : `+${story.ageRating ?? '18'}`}</span>
+        <span className={`origin-badge ${story.creationMethod ?? 'human'}`}>
+          {story.creationMethod === 'ai_generated'
+            ? 'Generada por IA'
+            : story.creationMethod === 'ai_assisted'
+              ? 'Asistida por IA'
+              : 'Creada por autor'}
+        </span>
         <h1>{story.title}</h1>
         <p className="story-author">por <Link href={`/users/${story.authorUsername}`}>{story.author}</Link></p>
         <p className="story-synopsis">{story.synopsis}</p>

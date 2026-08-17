@@ -13,6 +13,11 @@ export function BookCard({ story }: { story: StorySummary }) {
         <span className="genre">{(story.genres?.length ? story.genres : [story.genre]).slice(0, 2).join(' / ')}</span>
         <h3>{story.title}</h3>
         <p>{story.author}</p>
+        {story.creationMethod && story.creationMethod !== 'human' ? (
+          <span className={`origin-badge ${story.creationMethod}`} title="Declaracion de origen del contenido">
+            {story.creationMethod === 'ai_generated' ? 'Generada por IA' : 'Asistida por IA'}
+          </span>
+        ) : null}
         <span className="chapter-count"><Clock3 size={14} />{story.chapterCount} capitulos</span>
       </div>
     </Link>

@@ -10,7 +10,6 @@ const eventSchema = z.object({
   storyId: z.string().uuid(),
   chapterId: z.string().uuid(),
   activeSeconds: z.number().int().min(0).max(3600).optional(),
-  eventId: z.string().min(8).max(120).optional(),
 });
 
 function bearerUserId(authorization?: unknown): string | null {
@@ -26,13 +25,21 @@ function anonymousReaderKey(request: {
   const userAgent = typeof request.headers['user-agent'] === 'string'
     ? request.headers['user-agent']
     : 'unknown';
-  const salt = process.env['JWT_SECRET'] ?? 'readinn-anonymous-reader';
+  const salt = process.env['ANALYTICS_SALT'] ?? 'readinn-anonymous-reader';
   const digest = crypto
     .createHmac('sha256', salt)
     .update(`${request.ip}|${userAgent}`)
     .digest('hex')
     .slice(0, 40);
   return `anon:${digest}`;
+}
+
+function serverEventId(readerKey: string, chapterId: string, eventType: string): string {
+  const minuteWindow = Math.floor(Date.now() / 60_000);
+  return crypto
+    .createHash('sha256')
+    .update(`${readerKey}|${chapterId}|${eventType}|${minuteWindow}`)
+    .digest('hex');
 }
 
 function emptySummary(storyMetrics: Array<Record<string, unknown>> = []) {
@@ -178,23 +185,35 @@ export function registerAnalyticsRoutes(app: FastifyInstance): void {
       });
     }
 
-    const eventId = body.eventId ?? crypto.randomUUID();
-    await prisma.readingEvent.upsert({
-      where: { eventId },
-      create: {
+    const readerKey = anonymousReaderKey(request);
+    const eventId = serverEventId(readerKey, body.chapterId, body.eventType);
+    const activeSeconds = body.eventType === 'reading_heartbeat'
+      ? Math.min(body.activeSeconds ?? 0, 60)
+      : 0;
+    const inserted = await prisma.$transaction(async (tx) => {
+      const created = await tx.readingEvent.createMany({
+        data: [{
         eventId,
         storyId: body.storyId,
         chapterId: body.chapterId,
-        readerKey: anonymousReaderKey(request),
+        readerKey,
         eventType: body.eventType,
-        activeSeconds: body.activeSeconds ?? 0,
-      },
-      update: {},
+        activeSeconds,
+        }],
+        skipDuplicates: true,
+      });
+      if (created.count === 1 && body.eventType === 'chapter_opened') {
+        await tx.story.update({
+          where: { id: body.storyId },
+          data: { readCount: { increment: 1 } },
+        });
+      }
+      return created.count === 1;
     });
 
     return {
       data: {
-        recorded: true,
+        recorded: inserted,
         eventType: body.eventType,
         storyId: body.storyId,
         chapterId: body.chapterId,

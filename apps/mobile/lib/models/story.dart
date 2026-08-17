@@ -14,6 +14,7 @@ class StorySummary {
   final int chapterCount;
   final bool isMature;
   final String ageRating;
+  final String creationMethod;
   final String coverColor;
   final double averageRating;
   final int ratingCount;
@@ -32,6 +33,7 @@ class StorySummary {
     required this.chapterCount,
     required this.isMature,
     this.ageRating = 'all',
+    this.creationMethod = 'human',
     required this.coverColor,
     this.averageRating = 0,
     this.ratingCount = 0,
@@ -58,6 +60,7 @@ class StorySummary {
     ageRating:
         json['ageRating'] as String? ??
         ((json['isMature'] as bool? ?? false) ? '18' : 'all'),
+    creationMethod: json['creationMethod'] as String? ?? 'human',
     coverColor: json['coverColor'] as String? ?? '#4F46E5',
     averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0,
     ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,
@@ -102,6 +105,7 @@ class StoryDetail extends StorySummary {
     required super.chapterCount,
     required super.isMature,
     super.ageRating,
+    super.creationMethod,
     required super.coverColor,
     super.averageRating,
     super.ratingCount,
@@ -135,6 +139,7 @@ class StoryDetail extends StorySummary {
       ageRating:
           json['ageRating'] as String? ??
           ((json['isMature'] as bool? ?? false) ? '18' : 'all'),
+      creationMethod: json['creationMethod'] as String? ?? 'human',
       coverColor: json['coverColor'] as String? ?? '#4F46E5',
       averageRating: (json['averageRating'] as num?)?.toDouble() ?? 0,
       ratingCount: (json['ratingCount'] as num?)?.toInt() ?? 0,

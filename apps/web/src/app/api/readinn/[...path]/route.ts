@@ -13,6 +13,13 @@ async function proxy(request: NextRequest, context: { params: { path: string[] }
   const contentType = request.headers.get('content-type');
   if (contentType) headers.set('Content-Type', contentType);
   if (token) headers.set('Authorization', `Bearer ${token}`);
+  const userAgent = request.headers.get('user-agent');
+  if (userAgent) headers.set('User-Agent', userAgent);
+  if (process.env.READINN_FORWARD_CLIENT_HEADERS === 'true') {
+    const forwardedFor = request.headers.get('x-real-ip')
+      ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+    if (forwardedFor) headers.set('X-Forwarded-For', forwardedFor);
+  }
 
   const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.arrayBuffer();
   let response = await fetch(target, {

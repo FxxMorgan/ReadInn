@@ -6,7 +6,8 @@ import { bearerClaims } from '../../shared/auth.js';
 import { contentCache, storyCacheTags } from '../../shared/content-cache.js';
 import { checkDatabaseConnection, prisma } from '../../shared/db.js';
 import { AppError } from '../../shared/errors.js';
-import { enforceMinimumAgeRating, storyTagKind, type StoryAgeRating } from './story-taxonomy.js';
+import { chapterMetrics } from './story-content.js';
+import { enforceMinimumAgeRating, storyTagKind } from './story-taxonomy.js';
 
 const chapterSchema = z.object({
   title: z.string().trim().min(1).max(150),
@@ -31,6 +32,7 @@ const importedStorySchema = z.object({
   coverUrl: z.string().url().max(2048).optional(),
   isMature: z.boolean().default(false),
   ageRating: z.enum(['all', '11', '13', '16', '18']).optional(),
+  creationMethod: z.enum(['human', 'ai_assisted', 'ai_generated']).default('human'),
   status: z.enum(['draft', 'published']).default('draft'),
   chapters: z.array(chapterSchema).min(1).max(200),
 }).strict();
@@ -74,11 +76,6 @@ function paragraphsFrom(content: string | string[]): string[] {
     throw new AppError('EMPTY_CHAPTER', 'Un capitulo importado no puede estar vacio.', 422);
   }
   return paragraphs;
-}
-
-function chapterMetrics(plainText: string): { wordCount: number; estimatedReadMin: number } {
-  const wordCount = plainText.split(/\s+/).filter(Boolean).length;
-  return { wordCount, estimatedReadMin: Math.max(1, Math.ceil(wordCount / 200)) };
 }
 
 async function requireAdmin(request: FastifyRequest): Promise<string> {
@@ -138,6 +135,7 @@ async function resolveAuthor(tx: Prisma.TransactionClient, authorName: string, f
       username: baseUsername,
       passwordHash,
       accountStatus: 'active',
+      isPlaceholder: true,
       isAdmin: false,
       emailVerifiedAt: new Date(),
       writerOnboardedAt: new Date(),
@@ -169,9 +167,14 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
 
       for (const input of body.stories) {
         const importKey = input.importKey.toLowerCase();
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${importKey}, 0))`;
         const existing = await tx.story.findUnique({
           where: { importKey },
-          select: { id: true, publishedChapterCount: true },
+          select: {
+            id: true,
+            publishedChapterCount: true,
+            chapters: { select: { id: true, position: true } },
+          },
         });
         if (existing && body.conflictMode === 'skip') {
           items.push({
@@ -182,13 +185,11 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
           });
           continue;
         }
-        if (existing) await tx.story.delete({ where: { id: existing.id } });
-
         const genreNames = [...new Set([input.genre, ...(input.genres ?? [])])];
         const genres = await Promise.all(genreNames.map((name) => resolveGenre(tx, name)));
         const tags = await Promise.all(input.tags.map((name) => resolveTag(tx, name)));
         const finalAgeRating = enforceMinimumAgeRating(
-          (input.ageRating ?? (input.isMature ? '18' : 'all')) as StoryAgeRating,
+          input.ageRating ?? (input.isMature ? '18' : 'all'),
           input.tags,
         );
         const authorId = await resolveAuthor(tx, input.authorName, adminId);
@@ -208,15 +209,76 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
         });
         const publishedChapters = chapters.filter((chapter) => chapter.status === 'published');
         const storySlugSuffix = crypto.createHash('sha256').update(importKey).digest('hex').slice(0, 10);
-        const story = await tx.story.create({
-          data: {
+        const storySlug = `${slugify(input.title, 'obra')}-${storySlugSuffix}`;
+        let storyId: string;
+        if (existing) {
+          await tx.story.update({
+            where: { id: existing.id },
+            data: {
+              author: { connect: { id: authorId } },
+              title: input.title,
+              slug: storySlug,
+              synopsis: input.synopsis,
+              status: input.status,
+              isMature: finalAgeRating === '18',
+              ageRating: finalAgeRating,
+              creationMethod: input.creationMethod,
+              coverUrl: input.coverUrl ?? null,
+              attributionName: input.authorName,
+              sourceUrl: input.sourceUrl,
+              sourceLicense: input.license,
+              languageCode: input.languageCode,
+              wordCount: publishedChapters.reduce((sum, chapter) => sum + chapter.wordCount, 0),
+              publishedChapterCount: publishedChapters.length,
+              publishedAt: input.status === 'published' ? new Date() : null,
+            },
+          });
+          await Promise.all([
+            tx.storyGenre.deleteMany({ where: { storyId: existing.id } }),
+            tx.storyTag.deleteMany({ where: { storyId: existing.id } }),
+          ]);
+          if (genres.length) {
+            await tx.storyGenre.createMany({
+              data: genres.map((genre) => ({ storyId: existing.id, genreId: genre.id })),
+            });
+          }
+          if (tags.length) {
+            await tx.storyTag.createMany({
+              data: tags.map((tag) => ({ storyId: existing.id, tagId: tag.id })),
+            });
+          }
+
+          const chapterByPosition = new Map(existing.chapters.map((chapter) => [chapter.position, chapter]));
+          for (const chapter of chapters) {
+            const current = chapterByPosition.get(chapter.position);
+            const data = {
+              title: chapter.title,
+              slug: chapter.slug,
+              status: chapter.status,
+              contentJson: chapter.contentJson as Prisma.InputJsonValue,
+              plainText: chapter.plainText,
+              wordCount: chapter.wordCount,
+              estimatedReadMin: chapter.estimatedReadMin,
+              publishedAt: chapter.status === 'published' ? new Date() : null,
+            };
+            if (current) await tx.chapter.update({ where: { id: current.id }, data });
+            else await tx.chapter.create({ data: { storyId: existing.id, position: chapter.position, ...data } });
+          }
+          await tx.chapter.deleteMany({
+            where: { storyId: existing.id, position: { gt: chapters.length } },
+          });
+          storyId = existing.id;
+        } else {
+          const story = await tx.story.create({
+            data: {
             author: { connect: { id: authorId } },
             title: input.title,
-            slug: `${slugify(input.title, 'obra')}-${storySlugSuffix}`,
+            slug: storySlug,
             synopsis: input.synopsis,
             status: input.status,
             isMature: finalAgeRating === '18',
             ageRating: finalAgeRating,
+            creationMethod: input.creationMethod,
             ...(input.coverUrl ? { coverUrl: input.coverUrl } : {}),
             attributionName: input.authorName,
             sourceUrl: input.sourceUrl,
@@ -229,12 +291,14 @@ export function registerBulkImportRoutes(app: FastifyInstance): void {
             genres: { create: genres.map((genre) => ({ genre: { connect: { id: genre.id } } })) },
             tags: { create: tags.map((tag) => ({ tag: { connect: { id: tag.id } } })) },
             chapters: { create: chapters },
-          },
-          select: { id: true },
-        });
+            },
+            select: { id: true },
+          });
+          storyId = story.id;
+        }
         items.push({
           importKey,
-          storyId: story.id,
+          storyId,
           status: existing ? 'replaced' : 'created',
           chapterCount: chapters.length,
         });

@@ -193,6 +193,16 @@ class StoryDetailScreen extends ConsumerWidget {
                             icon: Icons.check_circle_outline,
                           ),
                           _MetaChip(
+                            label: story.creationMethod == 'ai_generated'
+                                ? 'Generada por IA'
+                                : story.creationMethod == 'ai_assisted'
+                                ? 'Asistida por IA'
+                                : 'Creada por autor',
+                            icon: story.creationMethod == 'human'
+                                ? Icons.person_outline
+                                : Icons.smart_toy_outlined,
+                          ),
+                          _MetaChip(
                             label: engagement.averageRating > 0
                                 ? engagement.averageRating.toStringAsFixed(1)
                                 : 'Sin calificar',

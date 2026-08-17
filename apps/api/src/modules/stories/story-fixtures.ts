@@ -14,6 +14,7 @@ export type StorySummary = {
   chapterCount: number;
   isMature: boolean;
   ageRating?: 'all' | '11' | '13' | '16' | '18';
+  creationMethod?: 'human' | 'ai_assisted' | 'ai_generated';
   coverColor: string;
   averageRating?: number;
   ratingCount?: number;
@@ -41,6 +42,7 @@ export const storyFixtures: StorySummary[] = [
     status: 'published',
     chapterCount: 3,
     isMature: false,
+    creationMethod: 'human',
     coverColor: '#1f5f73'
   },
   {
@@ -53,6 +55,7 @@ export const storyFixtures: StorySummary[] = [
     status: 'published',
     chapterCount: 2,
     isMature: false,
+    creationMethod: 'human',
     coverColor: '#7f4f24'
   }
 ];

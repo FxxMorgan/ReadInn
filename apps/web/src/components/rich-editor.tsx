@@ -14,6 +14,20 @@ import { apiFetch, apiUrl } from '@/lib/api';
 
 export interface EditorDocument { type: 'doc'; content?: unknown[] }
 
+const SAFE_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+
+function safeLink(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(candidate);
+    return SAFE_LINK_PROTOCOLS.has(url.protocol) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
 interface RichEditorProps {
   initialContent: unknown;
   onChange: (json: EditorDocument, text: string) => void;
@@ -23,7 +37,12 @@ export function RichEditor({ initialContent, onChange }: RichEditorProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [StarterKit, Underline, Typography, Image.configure({ allowBase64: false }), Link.configure({ openOnClick: false }), TextAlign.configure({ types: ['heading', 'paragraph'] }), Placeholder.configure({ placeholder: 'Empieza a escribir tu historia...' })],
+    extensions: [StarterKit, Underline, Typography, Image.configure({ allowBase64: false }), Link.configure({
+      openOnClick: false,
+      protocols: ['http', 'https', 'mailto'],
+      validate: (href) => safeLink(href) !== null,
+      isAllowedUri: (href) => safeLink(href) !== null,
+    }), TextAlign.configure({ types: ['heading', 'paragraph'] }), Placeholder.configure({ placeholder: 'Empieza a escribir tu historia...' })],
     content: normalizeContent(initialContent),
     editorProps: { attributes: { class: 'prose-editor' } },
     onUpdate: ({ editor: current }) => onChange(current.getJSON() as EditorDocument, current.getText({ blockSeparator: '\n\n' })),
@@ -56,7 +75,10 @@ export function RichEditor({ initialContent, onChange }: RichEditorProps) {
     {command('Alinear izquierda', <AlignLeft size={17}/>, () => editor.chain().focus().setTextAlign('left').run(), editor.isActive({textAlign:'left'}))}
     {command('Centrar', <AlignCenter size={17}/>, () => editor.chain().focus().setTextAlign('center').run(), editor.isActive({textAlign:'center'}))}
     {command('Alinear derecha', <AlignRight size={17}/>, () => editor.chain().focus().setTextAlign('right').run(), editor.isActive({textAlign:'right'}))}<i />
-    {command('Enlace', <Link2 size={17}/>, () => { const href=window.prompt('URL del enlace'); if(href) editor.chain().focus().extendMarkRange('link').setLink({href}).run(); }, editor.isActive('link'))}
+    {command('Enlace', <Link2 size={17}/>, () => {
+      const href = safeLink(window.prompt('URL del enlace') ?? '');
+      if (href) editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
+    }, editor.isActive('link'))}
     {command('Imagen', <ImagePlus size={17}/>, () => fileRef.current?.click())}
     <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(event) => { const file=event.target.files?.[0]; if(file) void addImage(file); event.target.value=''; }} />
   </div><EditorContent editor={editor}/></div>;

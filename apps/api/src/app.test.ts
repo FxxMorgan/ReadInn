@@ -4,17 +4,18 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildApp } from './app.js';
 import { loadConfig } from './config/env.js';
-import { accessToken } from './shared/auth.js';
+import { accessToken, verifyToken } from './shared/auth.js';
 import { s3MediaService } from './modules/media/s3-storage.js';
 import { bulkImportSchema } from './modules/stories/bulk-import-routes.js';
 
-vi.mock('./shared/db.js', async (importOriginal) => {
-  const original = await importOriginal<typeof import('./shared/db.js')>();
-  return { ...original, checkDatabaseConnection: async () => false };
+vi.mock('./shared/db.js', async () => {
+  const original = await vi.importActual('./shared/db.js');
+  return { ...original, checkDatabaseConnection: () => Promise.resolve(false) };
 });
 
 const config = loadConfig({
   NODE_ENV: 'test',
+  READINN_FIXTURE_MODE: 'true',
   APP_WEB_URL: 'http://localhost:8080',
   LOG_LEVEL: 'silent',
   CACHE_ENABLED: 'false',
@@ -68,6 +69,29 @@ describe('ReadInn API', () => {
     await app.close();
   });
 
+  it('rejects forged legacy tokens and unauthenticated private routes', async () => {
+    const forged = Buffer.from(JSON.stringify({ userId: 'victim-user' })).toString('base64');
+    expect(verifyToken(forged, 'access')).toBeNull();
+
+    const app = await buildApp(config);
+    const requests = await Promise.all([
+      app.inject({ method: 'GET', url: '/v1/auth/me' }),
+      app.inject({ method: 'POST', url: '/v1/library/story-lighthouse' }),
+      app.inject({
+        method: 'POST',
+        url: '/v1/media/upload-intent',
+        payload: { filename: 'cover.png', mimeType: 'image/png', sizeBytes: 8, purpose: 'cover' },
+      }),
+      app.inject({ method: 'GET', url: '/v1/admin/reports' }),
+    ]);
+
+    for (const response of requests) {
+      expect(response.statusCode).toBe(401);
+      expect(response.json<{ error: { code: string } }>().error.code).toBe('AUTH_REQUIRED');
+    }
+    await app.close();
+  });
+
   it('rejects duplicate import keys inside a bulk request', () => {
     const story = {
       importKey: 'gutenberg:1342',
@@ -87,13 +111,17 @@ describe('ReadInn API', () => {
   it('uploads media through the API before confirming it', async () => {
     const uploadSpy = vi.spyOn(s3MediaService, 'uploadObject').mockResolvedValue();
     const app = await buildApp(config);
+    const token = accessToken('user-media', 'media@example.com');
+    const headers = { authorization: `Bearer ${token}` };
+    const pngHeader = Buffer.from('89504e470d0a1a0a', 'hex');
     const intentResponse = await app.inject({
       method: 'POST',
       url: '/v1/media/upload-intent',
+      headers,
       payload: {
         filename: 'cover.png',
         mimeType: 'image/png',
-        sizeBytes: 4,
+        sizeBytes: pngHeader.length,
         purpose: 'cover',
       },
     });
@@ -101,12 +129,13 @@ describe('ReadInn API', () => {
     const uploadResponse = await app.inject({
       method: 'PUT',
       url: intent.uploadPath,
-      headers: { 'content-type': 'image/png' },
-      payload: Buffer.from([1, 2, 3, 4]),
+      headers: { ...headers, 'content-type': 'image/png' },
+      payload: pngHeader,
     });
     const confirmation = await app.inject({
       method: 'POST',
       url: `/v1/media/${intent.mediaId}/confirm`,
+      headers,
     });
 
     expect(intentResponse.statusCode).toBe(201);
@@ -213,16 +242,24 @@ describe('ReadInn API', () => {
 
   it('lists and creates chapter comments', async () => {
     const app = await buildApp(config);
+    const unauthorized = await app.inject({
+      method: 'POST',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+      payload: { body: 'Este comentario no debe publicarse.' },
+    });
+    const token = accessToken('comment-reader', 'comment-reader@example.com');
     const createResponse = await app.inject({
       method: 'POST',
       url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
-      payload: { body: 'El mapa tiene una atmosfera increible.', authorName: 'Lector' },
+      headers: { authorization: `Bearer ${token}` },
+      payload: { body: 'El mapa tiene una atmosfera increible.' },
     });
     const listResponse = await app.inject({
       method: 'GET',
       url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
     });
 
+    expect(unauthorized.statusCode).toBe(401);
     expect(createResponse.statusCode).toBe(201);
     expect(createResponse.json<{ data: { body: string } }>().data.body).toBe(
       'El mapa tiene una atmosfera increible.'
@@ -232,25 +269,48 @@ describe('ReadInn API', () => {
     await app.close();
   });
 
-  it('supports replies, voting, and revealing comments hidden by negativity', async () => {
+  it('supports authenticated replies and protects comments hidden by negativity', async () => {
     const app = await buildApp(config);
+    const authorToken = accessToken('thread-author', 'thread-author@example.com');
+    const headers = { authorization: `Bearer ${authorToken}` };
     const create = await app.inject({
       method: 'POST',
       url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
-      payload: { body: 'Este comentario iniciara un hilo.', authorName: 'Autor del hilo' },
+      headers,
+      payload: { body: 'Este comentario iniciara un hilo.' },
     });
     const parent = create.json<{ data: { id: string } }>().data;
     const reply = await app.inject({
       method: 'POST',
       url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+      headers,
       payload: {
         body: 'Esta es una respuesta directa.',
-        authorName: 'Respuesta',
         parentCommentId: parent.id,
       },
     });
     expect(reply.statusCode).toBe(201);
     expect(reply.json<{ data: { parentCommentId: string } }>().data.parentCommentId).toBe(parent.id);
+
+    let deepestId = reply.json<{ data: { id: string } }>().data.id;
+    for (let depth = 2; depth <= 8; depth += 1) {
+      const nested = await app.inject({
+        method: 'POST',
+        url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+        headers,
+        payload: { body: `Respuesta de nivel ${depth}.`, parentCommentId: deepestId },
+      });
+      expect(nested.statusCode).toBe(201);
+      deepestId = nested.json<{ data: { id: string } }>().data.id;
+    }
+    const tooDeep = await app.inject({
+      method: 'POST',
+      url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments',
+      headers,
+      payload: { body: 'Esta respuesta excede la profundidad.', parentCommentId: deepestId },
+    });
+    expect(tooDeep.statusCode).toBe(422);
+    expect(tooDeep.json<{ error: { code: string } }>().error.code).toBe('COMMENT_DEPTH_EXCEEDED');
 
     for (let index = 1; index <= 3; index += 1) {
       const token = accessToken(`negative-reader-${index}`, `negative-${index}@example.com`);
@@ -277,10 +337,10 @@ describe('ReadInn API', () => {
     const revealed = await app.inject({
       method: 'GET',
       url: '/v1/stories/story-lighthouse/chapters/chapter-lighthouse-1/comments?includeHidden=true',
+      headers,
     });
-    const revealedComment = revealed.json<{ data: Array<{ id: string; body: string }> }>()
-      .data.find((comment) => comment.id === parent.id);
-    expect(revealedComment?.body).toBe('Este comentario iniciara un hilo.');
+    expect(revealed.statusCode).toBe(403);
+    expect(revealed.json<{ error: { code: string } }>().error.code).toBe('ADMIN_REQUIRED');
     await app.close();
   });
 
@@ -454,10 +514,50 @@ describe('ReadInn API', () => {
     await app.close();
   });
 
+  it('declares and filters the creation method of a story', async () => {
+    const app = await buildApp(config);
+    const token = accessToken('user-ai-disclosure', 'ai-disclosure@example.com');
+    const headers = { authorization: `Bearer ${token}` };
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/stories',
+      headers,
+      payload: {
+        title: 'Historia asistida',
+        synopsis: 'Una historia escrita por su autor con apoyo editorial de inteligencia artificial.',
+        genre: 'Drama',
+        creationMethod: 'ai_assisted',
+        status: 'published',
+      },
+    });
+
+    expect(created.statusCode).toBe(201);
+    const story = created.json<{ data: { id: string; creationMethod: string } }>().data;
+    expect(story.creationMethod).toBe('ai_assisted');
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: `/v1/me/stories/${story.id}`,
+      headers,
+      payload: { creationMethod: 'ai_generated' },
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json<{ data: { creationMethod: string } }>().data.creationMethod).toBe('ai_generated');
+    const filtered = await app.inject({
+      method: 'GET',
+      url: '/v1/stories?creationMethod=ai_generated&query=Historia%20asistida',
+    });
+    expect(filtered.statusCode).toBe(200);
+    expect(filtered.json<{ data: Array<{ creationMethod: string }> }>().data).toEqual(
+      expect.arrayContaining([expect.objectContaining({ creationMethod: 'ai_generated' })]),
+    );
+    await app.close();
+  });
+
   it('caches book content on disk and invalidates it after an author edit', async () => {
     const cacheDir = await mkdtemp(path.join(tmpdir(), 'readinn-cache-'));
     const cacheConfig = loadConfig({
       NODE_ENV: 'test',
+      READINN_FIXTURE_MODE: 'true',
       APP_WEB_URL: 'http://localhost:8080',
       LOG_LEVEL: 'silent',
       CACHE_ENABLED: 'true',

@@ -112,6 +112,7 @@ class ManageStoryScreen extends ConsumerWidget {
     };
     final tags = <String>{...story.tags.map((tag) => tag.name)};
     var ageRating = story.ageRating;
+    var creationMethod = story.creationMethod;
     final shouldSave = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -133,6 +134,29 @@ class ManageStoryScreen extends ConsumerWidget {
                 const Text(
                   'Separa los géneros de los tipos, la ambientación, el tono y el contenido.',
                   style: TextStyle(color: ReadInnColors.muted),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: creationMethod,
+                  decoration: const InputDecoration(
+                    labelText: 'Origen del contenido',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'human',
+                      child: Text('Creada por autor'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'ai_assisted',
+                      child: Text('Asistida por IA'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'ai_generated',
+                      child: Text('Generada por IA'),
+                    ),
+                  ],
+                  onChanged: (value) =>
+                      setSheetState(() => creationMethod = value ?? 'human'),
                 ),
                 const SizedBox(height: 18),
                 DropdownButtonFormField<String>(
@@ -239,6 +263,7 @@ class ManageStoryScreen extends ConsumerWidget {
             genres: genres.toList(),
             tags: tags.toList(),
             ageRating: ageRating,
+            creationMethod: creationMethod,
           );
       ref.invalidate(writerStoryDetailProvider(story.id));
       ref.invalidate(writerStoriesProvider);

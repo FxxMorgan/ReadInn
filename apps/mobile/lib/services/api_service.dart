@@ -29,8 +29,23 @@ class ApiService {
     headers: token == null ? null : {'Authorization': 'Bearer $token'},
   );
 
+  String _sessionUserKey(String? token) {
+    if (token == null) return 'guest';
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return 'guest';
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      if (payload is Map<String, dynamic> && payload['userId'] is String) {
+        return payload['userId'] as String;
+      }
+    } catch (_) {}
+    return 'guest';
+  }
+
   String _progressKey(String storyId, String? token) =>
-      'reading_progress_${token ?? 'guest'}_$storyId';
+      'reading_progress_${_sessionUserKey(token)}_$storyId';
 
   String _offlineStoryKey(String storyId) => 'offline_story_$storyId';
   String _offlineChapterKey(String storyId, String chapterId) =>
@@ -389,8 +404,6 @@ class ApiService {
           'storyId': storyId,
           'chapterId': chapterId,
           'activeSeconds': activeSeconds,
-          'eventId':
-              '$eventType-$storyId-$chapterId-${DateTime.now().microsecondsSinceEpoch}',
         },
         options: _authOptions(token),
       );
@@ -507,6 +520,7 @@ class ApiService {
     required List<String> genres,
     required List<String> tags,
     required String ageRating,
+    String creationMethod = 'human',
     required String authorName,
     required String authorUsername,
     String? coverUrl,
@@ -520,6 +534,7 @@ class ApiService {
         'genres': genres,
         'tags': tags,
         'ageRating': ageRating,
+        'creationMethod': creationMethod,
         'status': 'published',
         'coverColor': ?coverUrl,
       },
@@ -551,6 +566,7 @@ class ApiService {
     List<String>? genres,
     List<String>? tags,
     String? ageRating,
+    String? creationMethod,
   }) async {
     final response = await _dio.patch(
       '/v1/me/stories/$storyId',
@@ -559,6 +575,7 @@ class ApiService {
         'genres': ?genres,
         'tags': ?tags,
         'ageRating': ?ageRating,
+        'creationMethod': ?creationMethod,
       },
       options: _authOptions(token),
     );
@@ -662,6 +679,8 @@ class ApiService {
       status: story.status,
       chapterCount: chapterCount,
       isMature: story.isMature,
+      ageRating: story.ageRating,
+      creationMethod: story.creationMethod,
       coverColor: story.coverColor,
       averageRating: story.averageRating,
       ratingCount: story.ratingCount,
@@ -886,6 +905,8 @@ class ApiService {
         status: story.status,
         chapterCount: story.chapterCount,
         isMature: story.isMature,
+        ageRating: story.ageRating,
+        creationMethod: story.creationMethod,
         coverColor: story.coverColor,
         chapters: chapters,
       );

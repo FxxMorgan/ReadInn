@@ -74,6 +74,7 @@ function mapStory(story: {
   tags: Array<{ tag: { name: string; kind: string } }>;
   languageCode: string;
   ageRating: string;
+  creationMethod: 'human' | 'ai_assisted' | 'ai_generated';
 }) {
   return {
     id: story.id,
@@ -86,6 +87,7 @@ function mapStory(story: {
     tags: story.tags.map((item) => ({ name: item.tag.name, kind: item.tag.kind })),
     languageCode: story.languageCode,
     ageRating: story.ageRating,
+    creationMethod: story.creationMethod,
     status: story.status,
     chapterCount: story.publishedChapterCount,
     isMature: story.isMature,
@@ -115,6 +117,7 @@ export function registerSocialRoutes(app: FastifyInstance): void {
         stories: {
           where: { status: { in: ['published', 'completed'] } },
           orderBy: { publishedAt: 'desc' },
+          take: 100,
           include: {
             author: { include: { profile: true } },
             genres: { include: { genre: true } },

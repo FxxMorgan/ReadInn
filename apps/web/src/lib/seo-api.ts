@@ -1,18 +1,18 @@
 import type { PublicProfile, StoryDetail, StorySummary } from './types';
 
-const apiBase = process.env.READINN_API_URL ?? 'https://api.cypher.cl';
+const apiBase = process.env.READINN_API_URL;
 
 async function readData<T>(path: string): Promise<T | null> {
-  const candidates = [...new Set([apiBase, 'https://api.cypher.cl'])];
-  for (const candidate of candidates) {
-    try {
-      const response = await fetch(`${candidate}${path}`, { next: { revalidate: 300 } });
-      if (!response.ok) continue;
-      const payload = await response.json() as { data?: T };
-      if (payload.data !== undefined) return payload.data;
-    } catch {}
+  if (!apiBase) throw new Error('READINN_API_URL debe estar configurada para generar metadatos SEO.');
+  try {
+    const response = await fetch(`${apiBase}${path}`, { next: { revalidate: 300 } });
+    if (!response.ok) return null;
+    const payload = await response.json() as { data?: T };
+    return payload.data ?? null;
+  } catch (error) {
+    console.error(`No se pudo consultar ${path} para SEO.`, error);
+    return null;
   }
-  return null;
 }
 
 export function getPublicStory(id: string): Promise<StoryDetail | null> {
@@ -23,15 +23,14 @@ export function getPublicProfile(username: string): Promise<PublicProfile | null
   return readData<PublicProfile>(`/v1/users/${encodeURIComponent(username)}`);
 }
 
-export async function getPublicStories(): Promise<StorySummary[]> {
-  const stories: StorySummary[] = [];
-  for (let page = 1; page <= 100; page += 1) {
-    const batch = await readData<StorySummary[]>(`/v1/stories?limit=50&page=${page}&mature=exclude&sort=recent`);
-    if (!batch?.length) break;
-    stories.push(...batch);
-    if (batch.length < 50) break;
-  }
-  return stories;
+export async function getPublicStories(): Promise<Array<{
+  id: string;
+  authorUsername: string;
+  updatedAt?: string;
+}>> {
+  return await readData<Array<{ id: string; authorUsername: string; updatedAt?: string }>>(
+    '/v1/stories/sitemap',
+  ) ?? [];
 }
 
 export function absoluteUrl(path: string): string {

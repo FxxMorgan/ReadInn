@@ -6,6 +6,10 @@ import { buildEpub, buildPdf, type ExportChapter } from './story-export.js';
 import { storyTaxonomyResponse } from './story-taxonomy.js';
 import { bearerClaims } from '../../shared/auth.js';
 import { checkDatabaseConnection, prisma } from '../../shared/db.js';
+import { storyIdentifier } from '../../shared/identifiers.js';
+import { contentToParagraphs } from './story-content.js';
+
+const MAX_EXPORT_CHAPTERS = 200;
 
 const csvValues = z.preprocess((value) => {
   if (Array.isArray(value)) return value.flatMap((item) => String(item).split(','));
@@ -22,11 +26,12 @@ const listQuerySchema = z.object({
   tagMode: z.enum(['any', 'all']).default('any'),
   mature: z.enum(['exclude', 'include', 'only']).default('exclude'),
   ageRatings: csvValues,
+  creationMethod: z.enum(['all', 'human', 'ai_assisted', 'ai_generated']).default('all'),
   language: z.string().trim().min(2).max(10).optional(),
   minChapters: z.coerce.number().int().min(0).max(10000).default(0),
   minRating: z.coerce.number().min(0).max(5).default(0),
   sort: z.enum(['recent', 'popular', 'rating', 'chapters', 'title']).default('recent'),
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(200).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
@@ -46,7 +51,7 @@ function safeFilename(value: string): string {
 async function requireAdultAccess(request: FastifyRequest, storyId: string): Promise<void> {
   if (!(await checkDatabaseConnection())) return;
   const story = await prisma.story.findFirst({
-    where: { OR: [{ id: storyId }, { slug: storyId }] },
+    where: storyIdentifier(storyId),
     select: { ageRating: true },
   });
   if (!story || story.ageRating !== '18') return;
@@ -78,6 +83,11 @@ export function registerStoryRoutes(app: FastifyInstance): void {
     return storyRepository.getStories(query);
   });
 
+  app.get('/v1/stories/sitemap', async (_request, reply) => {
+    reply.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+    return { data: await storyRepository.getSitemapStories() };
+  });
+
   app.get<{ Params: { storyId: string } }>('/v1/stories/:storyId', async (request, reply) => {
     const story = await storyRepository.getStoryById(request.params.storyId);
     if (!story) {
@@ -89,6 +99,11 @@ export function registerStoryRoutes(app: FastifyInstance): void {
 
   app.get<{ Params: { storyId: string }; Querystring: { format?: string } }>(
     '/v1/stories/:storyId/download',
+    {
+      config: {
+        rateLimit: { max: 4, timeWindow: '1 minute' },
+      },
+    },
     async (request, reply) => {
       await requireAdultAccess(request, request.params.storyId);
       const query = storyDownloadQuerySchema.parse(request.query);
@@ -96,12 +111,17 @@ export function registerStoryRoutes(app: FastifyInstance): void {
       if (!story) {
         throw new AppError('STORY_NOT_FOUND', 'No se encontro la obra.', 404);
       }
+      if (story.chapters.length > MAX_EXPORT_CHAPTERS) {
+        throw new AppError(
+          'STORY_TOO_LARGE_TO_EXPORT',
+          `La descarga admite hasta ${MAX_EXPORT_CHAPTERS} capitulos por obra.`,
+          413,
+        );
+      }
       const chapters = (await Promise.all(story.chapters.map(async (summary) => {
         const chapter = await storyRepository.getChapterById(story.id, summary.id);
         if (!chapter) return null;
-        const paragraphs = Array.isArray(chapter.content)
-          ? chapter.content.map(String)
-          : [String(chapter.content ?? '')];
+        const paragraphs = contentToParagraphs(chapter.content);
         return { position: chapter.position, title: chapter.title, paragraphs } satisfies ExportChapter;
       }))).filter((chapter): chapter is ExportChapter => chapter !== null);
       if (!chapters.length) {
@@ -151,6 +171,11 @@ export function registerStoryRoutes(app: FastifyInstance): void {
 
   app.get<{ Params: { storyId: string; chapterId: string } }>(
     '/v1/stories/:storyId/chapters/:chapterId/download',
+    {
+      config: {
+        rateLimit: { max: 20, timeWindow: '1 minute' },
+      },
+    },
     async (request, reply) => {
       await requireAdultAccess(request, request.params.storyId);
       const chapter = await storyRepository.getChapterById(
@@ -160,9 +185,7 @@ export function registerStoryRoutes(app: FastifyInstance): void {
       if (!chapter) {
         throw new AppError('CHAPTER_NOT_FOUND', 'No se encontro el capitulo.', 404);
       }
-      const content = Array.isArray(chapter.content)
-        ? chapter.content.map(String)
-        : [String(chapter.content ?? '')];
+      const content = contentToParagraphs(chapter.content);
       const safeTitle = safeFilename(chapter.title);
       const markdown = `# ${chapter.title}\n\n${content.join('\n\n')}\n`;
       return reply

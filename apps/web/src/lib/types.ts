@@ -1,5 +1,6 @@
 export type StoryStatus = 'draft' | 'published' | 'completed' | 'archived' | 'suspended';
 export type ChapterStatus = 'draft' | 'scheduled' | 'published' | 'unpublished' | 'archived';
+export type StoryCreationMethod = 'human' | 'ai_assisted' | 'ai_generated';
 
 export interface UserAccount {
   id: string;
@@ -38,6 +39,7 @@ export interface StorySummary {
   chapterCount: number;
   isMature: boolean;
   ageRating?: 'all' | '11' | '13' | '16' | '18';
+  creationMethod?: StoryCreationMethod;
   coverColor: string;
   updatedAt?: string;
   averageRating?: number;
@@ -90,6 +92,7 @@ export interface ChapterComment {
   score: number;
   currentVote: -1 | 0 | 1;
   isHidden: boolean;
+  depth: number;
   paragraphIndex?: number;
   parentCommentId?: string;
 }

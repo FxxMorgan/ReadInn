@@ -1,47 +1,55 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { bearerClaims } from '../../shared/auth.js';
 import { contentCache, storyCacheTags } from '../../shared/content-cache.js';
-import { checkDatabaseConnection, prisma } from '../../shared/db.js';
+import { prisma } from '../../shared/db.js';
+import { resolveActiveUser } from '../../shared/auth-guards.js';
 import { writerRepository } from './writer-repository.js';
+import { editorContentSchema } from './story-content.js';
+import { STORY_GENRES } from './story-taxonomy.js';
+
+const coverValueSchema = z.union([
+  z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Usa un color hexadecimal de seis digitos.'),
+  z.string().url().refine((value) => /^https?:/i.test(value), 'La portada debe usar http o https.'),
+]);
 
 const createStorySchema = z.object({
   title: z.string().min(2).max(150),
   synopsis: z.string().min(10).max(3000),
-  genre: z.string().min(2).max(80).optional(),
-  genres: z.array(z.string().trim().min(2).max(80)).min(1).max(5).optional(),
+  genre: z.enum(STORY_GENRES).optional(),
+  genres: z.array(z.enum(STORY_GENRES)).min(1).max(5).optional(),
   tags: z.array(z.string().trim().min(2).max(100)).max(20).default([]),
   isMature: z.boolean().optional(),
   ageRating: z.enum(['all', '11', '13', '16', '18']).optional(),
-  coverColor: z.string().optional(),
+  creationMethod: z.enum(['human', 'ai_assisted', 'ai_generated']).default('human'),
+  coverColor: coverValueSchema.optional(),
   status: z.enum(['draft', 'published']).optional(),
-}).refine((body) => Boolean(body.genre || body.genres?.length), {
+}).strict().refine((body) => Boolean(body.genre || body.genres?.length), {
   message: 'Selecciona al menos un genero.',
   path: ['genres'],
 });
 const updateStorySchema = z.object({
   title: z.string().min(2).max(150).optional(),
   synopsis: z.string().min(10).max(3000).optional(),
-  genres: z.array(z.string().trim().min(2).max(80)).min(1).max(5).optional(),
+  genres: z.array(z.enum(STORY_GENRES)).min(1).max(5).optional(),
   tags: z.array(z.string().trim().min(2).max(100)).max(20).optional(),
   isMature: z.boolean().optional(),
   ageRating: z.enum(['all', '11', '13', '16', '18']).optional(),
-  coverColor: z.string().url().nullable().optional(),
-}).refine((body) => Object.values(body).some((value) => value !== undefined), {
+  creationMethod: z.enum(['human', 'ai_assisted', 'ai_generated']).optional(),
+  coverColor: coverValueSchema.nullable().optional(),
+}).strict().refine((body) => Object.values(body).some((value) => value !== undefined), {
   message: 'Incluye al menos un cambio.',
 });
-const editorContentSchema = z.union([z.array(z.string()), z.record(z.unknown()), z.string()]);
 const createChapterSchema = z.object({
   title: z.string().min(2).max(150),
   content: editorContentSchema,
   status: z.enum(['draft', 'published']).optional(),
-});
+}).strict();
 const updateChapterSchema = z.object({
   title: z.string().min(2).max(150),
   content: editorContentSchema,
-  plainText: z.string(),
+  plainText: z.string().max(1_000_000).optional(),
   expectedVersion: z.number().int().min(1),
-});
+}).strict();
 
 interface WriterAccess {
   userId: string;
@@ -49,13 +57,7 @@ interface WriterAccess {
 }
 
 async function resolveWriterAccess(request: FastifyRequest): Promise<WriterAccess | null> {
-  const userId = bearerClaims(request.headers.authorization)?.userId ?? null;
-  if (!userId) return null;
-  if (!(await checkDatabaseConnection())) return { userId, isAdmin: false };
-  const user = await prisma.user.findFirst({
-    where: { id: userId, accountStatus: 'active', deletedAt: null },
-    select: { id: true, isAdmin: true },
-  });
+  const user = await resolveActiveUser(request);
   return user ? { userId: user.id, isAdmin: user.isAdmin } : null;
 }
 
@@ -65,7 +67,6 @@ async function requireWriter(
 ): Promise<WriterAccess | null> {
   const access = await resolveWriterAccess(request);
   if (access) return access;
-  if (!(await checkDatabaseConnection())) return { userId: 'guest', isAdmin: false };
   await reply.status(401).send({
     error: { code: 'AUTH_REQUIRED', message: 'Inicia sesion para gestionar tus obras.' },
   });
@@ -73,7 +74,7 @@ async function requireWriter(
 }
 
 async function storyAuthorId(access: WriterAccess, storyId: string): Promise<string | null> {
-  if (!access.isAdmin || !(await checkDatabaseConnection())) return access.userId;
+  if (!access.isAdmin) return access.userId;
   const story = await prisma.story.findUnique({
     where: { id: storyId },
     select: { authorId: true },
@@ -86,7 +87,7 @@ async function chapterAuthorId(
   storyId: string,
   chapterId: string,
 ): Promise<string | null> {
-  if (!access.isAdmin || !(await checkDatabaseConnection())) return access.userId;
+  if (!access.isAdmin) return access.userId;
   const chapter = await prisma.chapter.findFirst({
     where: { id: chapterId, storyId },
     select: { story: { select: { authorId: true } } },
@@ -143,6 +144,7 @@ export function registerWriterRoutes(app: FastifyInstance): void {
       ...(body.tags !== undefined ? { tags: body.tags } : {}),
       ...(body.isMature !== undefined ? { isMature: body.isMature } : {}),
       ...(body.ageRating !== undefined ? { ageRating: body.ageRating } : {}),
+      ...(body.creationMethod !== undefined ? { creationMethod: body.creationMethod } : {}),
       ...(body.coverColor !== undefined ? { coverColor: body.coverColor } : {}),
     });
     if (!story) return reply.status(404).send({ error: { code: 'STORY_NOT_FOUND', message: 'No se encontro la obra.' } });
@@ -162,6 +164,7 @@ export function registerWriterRoutes(app: FastifyInstance): void {
       tags: body.tags,
       ...(body.isMature !== undefined ? { isMature: body.isMature } : {}),
       ...(body.ageRating !== undefined ? { ageRating: body.ageRating } : {}),
+      creationMethod: body.creationMethod,
       ...(body.coverColor !== undefined ? { coverColor: body.coverColor } : {}),
       ...(body.status !== undefined ? { status: body.status } : {}),
     });
@@ -229,7 +232,6 @@ export function registerWriterRoutes(app: FastifyInstance): void {
         chapterId: request.params.chapterId,
         title: body.title,
         content: body.content,
-        plainText: body.plainText,
         expectedVersion: body.expectedVersion,
       });
       if (!result) {

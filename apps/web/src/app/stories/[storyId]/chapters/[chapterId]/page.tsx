@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BookDown, ChevronDown, ChevronUp, Download, Eye, MessageCircle, Reply, Send, Settings2, X } from 'lucide-react';
 import { useAuth } from '@/components/auth-provider';
 import { apiFetch, apiUrl } from '@/lib/api';
@@ -54,24 +54,32 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
   const chapterCacheKey = `readinn-offline-chapter:${params.storyId}:${params.chapterId}`;
   const commentsCacheKey = `readinn-offline-comments:${params.storyId}:${params.chapterId}`;
 
-  async function loadComments(includeHidden = showHiddenComments) {
+  const loadComments = useCallback(async (includeHidden = false, signal?: AbortSignal) => {
     try {
       const loaded = await apiFetch<ChapterComment[]>(
         `/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments?includeHidden=${includeHidden}`,
+        { signal },
       );
+      if (signal?.aborted) return;
       setComments(loaded);
       await putOfflineItem(commentsCacheKey, loaded);
     } catch {
+      if (signal?.aborted) return;
       const cached = await getOfflineItem<ChapterComment[]>(commentsCacheKey);
       if (cached) setComments(cached);
     }
-  }
+  }, [commentsCacheKey, params.chapterId, params.storyId]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
     async function loadProtectedChapter() {
-      void hasOfflineItem(chapterCacheKey).then(setOfflineSaved);
+      void hasOfflineItem(chapterCacheKey).then((saved) => {
+        if (!cancelled) setOfflineSaved(saved);
+      });
       try {
-        const story = await apiFetch<StoryDetail>(`/v1/stories/${params.storyId}`);
+        const story = await apiFetch<StoryDetail>(`/v1/stories/${params.storyId}`, { signal: controller.signal });
+        if (cancelled) return;
         if (story.ageRating === '18') {
           if (!user || user.id === 'user-guest') {
             router.push(`/login?next=${encodeURIComponent(`/stories/${params.storyId}/chapters/${params.chapterId}`)}`);
@@ -89,16 +97,27 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
             await refresh();
           }
         }
-        setChapter(await apiFetch<ChapterDetail>(`/v1/stories/${params.storyId}/chapters/${params.chapterId}`));
-        await loadComments();
+        const loadedChapter = await apiFetch<ChapterDetail>(
+          `/v1/stories/${params.storyId}/chapters/${params.chapterId}`,
+          { signal: controller.signal },
+        );
+        if (cancelled) return;
+        setChapter(loadedChapter);
+        await loadComments(false, controller.signal);
       } catch (reason) {
+        if (cancelled || controller.signal.aborted) return;
         const cached = await getOfflineItem<ChapterDetail>(chapterCacheKey);
+        if (cancelled) return;
         if (cached) setChapter(cached);
         else setAccessError(reason instanceof Error ? reason.message : 'No pudimos abrir el capítulo.');
       }
     }
     void loadProtectedChapter();
-  }, [params.chapterId, params.storyId, refresh, router, user]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [chapterCacheKey, loadComments, params.chapterId, params.storyId, refresh, router, user?.adultConfirmed, user?.id]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('readinn-reader-settings');
@@ -123,30 +142,62 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
     const parsed = paragraphs(chapter?.content);
     return parsed.length ? parsed : paragraphs(chapter?.plainText);
   }, [chapter?.content, chapter?.plainText]);
+  const { commentsByParagraph, generalComments, repliesByParent } = useMemo(() => {
+    const paragraphMap = new Map<number, ChapterComment[]>();
+    const general: ChapterComment[] = [];
+    const replyMap = new Map<string, ChapterComment[]>();
+    for (const comment of comments) {
+      if (comment.parentCommentId) {
+        const replies = replyMap.get(comment.parentCommentId) ?? [];
+        replies.push(comment);
+        replyMap.set(comment.parentCommentId, replies);
+      } else if (comment.paragraphIndex !== undefined) {
+        const paragraphComments = paragraphMap.get(comment.paragraphIndex) ?? [];
+        paragraphComments.push(comment);
+        paragraphMap.set(comment.paragraphIndex, paragraphComments);
+      } else {
+        general.push(comment);
+      }
+    }
+    for (const replies of replyMap.values()) {
+      replies.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    }
+    return { commentsByParagraph: paragraphMap, generalComments: general, repliesByParent: replyMap };
+  }, [comments]);
   const colors = themeOptions[theme];
 
   if (accessError) return <div className="page"><div className="error-state">{accessError}</div></div>;
   const fontFamily = fontOptions.find((option) => option.id === font)?.family ?? fontOptions[0]!.family;
-  const generalComments = comments.filter((comment) => comment.paragraphIndex === undefined && !comment.parentCommentId);
+
+  function updateComments(updater: (current: ChapterComment[]) => ChapterComment[]) {
+    setComments((current) => {
+      const next = updater(current);
+      void putOfflineItem(commentsCacheKey, next);
+      return next;
+    });
+  }
 
   async function submitComment(body: string, paragraphIndex?: number, parentCommentId?: string) {
-    await apiFetch(`/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments`, {
+    const created = await apiFetch<ChapterComment>(`/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ body, authorName: user?.displayName ?? 'Invitado', paragraphIndex, parentCommentId }),
+      body: JSON.stringify({ body, paragraphIndex, parentCommentId }),
     });
-    await loadComments();
+    updateComments((current) => [created, ...current]);
   }
 
   async function voteComment(comment: ChapterComment, value: -1 | 1) {
     const nextValue = comment.currentVote === value ? 0 : value;
-    await apiFetch(`/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments/${comment.id}/vote`, {
+    const result = await apiFetch<Pick<ChapterComment, 'upvotes' | 'downvotes' | 'score' | 'currentVote' | 'isHidden'>>(`/v1/stories/${params.storyId}/chapters/${params.chapterId}/comments/${comment.id}/vote`, {
       method: 'POST',
       body: JSON.stringify({ value: nextValue }),
     });
-    await loadComments();
+    updateComments((current) => current.map((item) => (
+      item.id === comment.id ? { ...item, ...result, likes: result.upvotes } : item
+    )));
   }
 
   async function revealHiddenComments() {
+    if (!user?.isAdmin) return;
     setShowHiddenComments(true);
     await loadComments(true);
   }
@@ -225,7 +276,7 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
         <h1 style={{ fontFamily }}>{chapter.title}</h1>
         <div className="reader-copy" style={{ fontFamily, fontSize, color: colors.text }}>
           {copy.map((paragraph, index) => {
-            const inlineComments = comments.filter((comment) => comment.paragraphIndex === index && !comment.parentCommentId);
+            const inlineComments = commentsByParagraph.get(index) ?? [];
             return (
               <section className="reader-paragraph" key={index}>
                 <p>{paragraph}</p>
@@ -243,16 +294,18 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
                       <CommentItem
                         key={comment.id}
                         comment={comment}
-                        comments={comments}
+                        repliesByParent={repliesByParent}
                         muted={colors.muted}
                         canVote={Boolean(user)}
+                        canReply={Boolean(user)}
+                        canReveal={Boolean(user?.isAdmin)}
                         revealed={showHiddenComments}
                         onReply={(body, parentId) => submitComment(body, index, parentId)}
                         onVote={voteComment}
                         onReveal={revealHiddenComments}
                       />
                     ))}
-                    <CommentComposer placeholder="Comentar este parrafo" onSubmit={(body) => submitComment(body, index)} />
+                    {user && <CommentComposer placeholder="Comentar este parrafo" onSubmit={(body) => submitComment(body, index)} />}
                   </div>
                 )}
               </section>
@@ -262,16 +315,18 @@ export default function ReaderPage({ params }: { params: { storyId: string; chap
 
         <section className="chapter-comments">
           <h2>Comentarios</h2>
-          <CommentComposer placeholder="Comentar el capitulo" onSubmit={submitComment} />
+          {user && <CommentComposer placeholder="Comentar el capitulo" onSubmit={submitComment} />}
           <div className="comment-list">
             {generalComments.length
               ? generalComments.map((comment) => (
                 <CommentItem
                   key={comment.id}
                   comment={comment}
-                  comments={comments}
+                  repliesByParent={repliesByParent}
                   muted={colors.muted}
                   canVote={Boolean(user)}
+                  canReply={Boolean(user)}
+                  canReveal={Boolean(user?.isAdmin)}
                   revealed={showHiddenComments}
                   onReply={(body, parentId) => submitComment(body, undefined, parentId)}
                   onVote={voteComment}
@@ -311,9 +366,11 @@ function CommentComposer({ placeholder, onSubmit }: { placeholder: string; onSub
 
 function CommentItem({
   comment,
-  comments,
+  repliesByParent,
   muted,
   canVote,
+  canReply,
+  canReveal,
   revealed,
   onReply,
   onVote,
@@ -321,9 +378,11 @@ function CommentItem({
   depth = 0,
 }: {
   comment: ChapterComment;
-  comments: ChapterComment[];
+  repliesByParent: Map<string, ChapterComment[]>;
   muted: string;
   canVote: boolean;
+  canReply: boolean;
+  canReveal: boolean;
   revealed: boolean;
   onReply: (body: string, parentId: string) => Promise<void>;
   onVote: (comment: ChapterComment, value: -1 | 1) => Promise<void>;
@@ -334,9 +393,7 @@ function CommentItem({
   const name = comment.authorUsername
     ? <Link href={`/users/${comment.authorUsername}`}>{comment.authorName}</Link>
     : comment.authorName;
-  const replies = comments
-    .filter((candidate) => candidate.parentCommentId === comment.id)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const replies = repliesByParent.get(comment.id) ?? [];
   const hiddenBody = comment.isHidden && !revealed;
   return (
     <div className="comment-thread" style={{ marginLeft: depth ? Math.min(depth, 3) * 18 : 0 }}>
@@ -349,12 +406,12 @@ function CommentItem({
         <div className="comment-content">
           <strong>{name}</strong>
           <p>{comment.body}</p>
-          {hiddenBody && <button className="comment-reveal" onClick={() => void onReveal()}><Eye size={15} />Mostrar de todas maneras</button>}
+          {hiddenBody && canReveal && <button className="comment-reveal" onClick={() => void onReveal()}><Eye size={15} />Mostrar de todas maneras</button>}
           <div className="comment-actions" style={{ color: muted }}>
             <button disabled={!canVote} className={comment.currentVote === 1 ? 'active' : ''} title={canVote ? 'Upvote' : 'Inicia sesion para votar'} onClick={() => void onVote(comment, 1)}><ChevronUp size={17} /></button>
             <span>{comment.score}</span>
             <button disabled={!canVote} className={comment.currentVote === -1 ? 'active negative' : ''} title={canVote ? 'Downvote' : 'Inicia sesion para votar'} onClick={() => void onVote(comment, -1)}><ChevronDown size={17} /></button>
-            <button onClick={() => setReplying((value) => !value)}><Reply size={15} />Responder</button>
+            <button disabled={!canReply} title={canReply ? 'Responder' : 'Inicia sesion para responder'} onClick={() => setReplying((value) => !value)}><Reply size={15} />Responder</button>
             <time>{new Date(comment.createdAt).toLocaleString('es-CL')}</time>
           </div>
           {replying && <CommentComposer placeholder={`Responder a ${comment.authorName}`} onSubmit={async (body) => { await onReply(body, comment.id); setReplying(false); }} />}
@@ -364,9 +421,11 @@ function CommentItem({
         <CommentItem
           key={reply.id}
           comment={reply}
-          comments={comments}
+          repliesByParent={repliesByParent}
           muted={muted}
           canVote={canVote}
+          canReply={canReply}
+          canReveal={canReveal}
           revealed={revealed}
           onReply={onReply}
           onVote={onVote}
