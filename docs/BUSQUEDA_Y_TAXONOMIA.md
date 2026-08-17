@@ -48,8 +48,8 @@ Parametros disponibles:
 GET /v1/stories/featured
 ```
 
-La seleccion se conserva durante 24 horas y usa actividad real de lectura. Si
-no existe actividad suficiente, utiliza la mejor obra publicada disponible. No
+La seleccion se conserva durante 24 horas y prioriza lectores unicos recientes,
+seguidores del autor y valoracion. Si no existe actividad suficiente, utiliza la mejor obra publicada disponible. No
 se deben mostrar fixtures como tendencias cuando el dispositivo esta offline.
 
 ## Crear o actualizar una obra

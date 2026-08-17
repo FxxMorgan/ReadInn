@@ -234,6 +234,17 @@ export class StoryRepository {
         },
         select: { storyId: true, readerKey: true },
       });
+      const ownership = await prisma.story.findMany({
+        where: { id: { in: result.data.map((story) => story.id) } },
+        select: { id: true, authorId: true },
+      });
+      const authorByStory = new Map(ownership.map((story) => [story.id, story.authorId]));
+      const followerGroups = ownership.length ? await prisma.userFollow.groupBy({
+        by: ['followingId'],
+        where: { followingId: { in: [...new Set(ownership.map((story) => story.authorId))] } },
+        _count: { _all: true },
+      }) : [];
+      const followersByAuthor = new Map(followerGroups.map((group) => [group.followingId, group._count._all]));
       const readersByStory = new Map<string, Set<string>>();
       for (const event of events) {
         const readers = readersByStory.get(event.storyId) ?? new Set<string>();
@@ -243,6 +254,9 @@ export class StoryRepository {
       return [...result.data].sort((a, b) => {
         const readerDifference = (readersByStory.get(b.id)?.size ?? 0) - (readersByStory.get(a.id)?.size ?? 0);
         if (readerDifference) return readerDifference;
+        const followerDifference = (followersByAuthor.get(authorByStory.get(b.id) ?? '') ?? 0)
+          - (followersByAuthor.get(authorByStory.get(a.id) ?? '') ?? 0);
+        if (followerDifference) return followerDifference;
         const ratingDifference = (b.averageRating ?? 0) - (a.averageRating ?? 0);
         if (ratingDifference) return ratingDifference;
         return (b.ratingCount ?? 0) - (a.ratingCount ?? 0);
