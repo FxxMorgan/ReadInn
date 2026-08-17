@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { prisma, checkDatabaseConnection } from '../../shared/db.js';
 import { AppError } from '../../shared/errors.js';
@@ -16,6 +17,10 @@ export interface UpdateChapterParams { chapterId: string; authorId: string; titl
 
 function slugify(value: string, fallback: string) { return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || fallback; }
 
+function uniqueStorySlug(title: string): string {
+  return `${slugify(title, 'obra')}-${crypto.randomBytes(8).toString('hex')}`;
+}
+
 function taxonomyKey(value: string): string {
   return value.trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
@@ -26,21 +31,42 @@ async function resolveGenres(tx: Prisma.TransactionClient, names: string[]) {
     if (!canonical) throw new AppError('INVALID_GENRE', `El genero no esta en la taxonomia: ${name}`, 422);
     return [taxonomyKey(canonical), canonical];
   })).values()];
-  const existing = await tx.genre.findMany({
-    where: { name: { in: unique, mode: 'insensitive' } },
-  });
-  const found = new Map(existing.map((genre) => [taxonomyKey(genre.name), genre]));
-  for (const name of unique) {
-    const key = taxonomyKey(name);
-    if (found.has(key)) continue;
-    const genre = await tx.genre.upsert({
-      where: { name },
-      update: { isActive: true },
-      create: { name, slug: slugify(name, 'general') },
-    });
-    found.set(key, genre);
+  const definitions = unique.map((name) => ({
+    key: taxonomyKey(name),
+    name,
+    slug: slugify(name, 'general'),
+  }));
+  for (const definition of [...definitions].sort((a, b) => a.key.localeCompare(b.key))) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`genre:${definition.key}`}, 0))`;
   }
-  return unique.map((name) => found.get(taxonomyKey(name))!);
+  const existing = await tx.genre.findMany({
+    where: {
+      OR: [
+        { name: { in: definitions.map((definition) => definition.name), mode: 'insensitive' } },
+        { slug: { in: definitions.map((definition) => definition.slug) } },
+      ],
+    },
+  });
+  const foundByKey = new Map(existing.map((genre) => [taxonomyKey(genre.name), genre]));
+  const foundBySlug = new Map(existing.map((genre) => [genre.slug, genre]));
+  const resolved = [];
+  for (const definition of definitions) {
+    let genre = foundByKey.get(definition.key) ?? foundBySlug.get(definition.slug);
+    if (!genre) {
+      genre = await tx.genre.create({
+        data: { name: definition.name, slug: definition.slug },
+      });
+    } else if (!genre.isActive) {
+      genre = await tx.genre.update({
+        where: { id: genre.id },
+        data: { isActive: true },
+      });
+    }
+    foundByKey.set(definition.key, genre);
+    foundBySlug.set(definition.slug, genre);
+    resolved.push(genre);
+  }
+  return resolved;
 }
 
 async function resolveTags(tx: Prisma.TransactionClient, names: string[]) {
@@ -49,21 +75,43 @@ async function resolveTags(tx: Prisma.TransactionClient, names: string[]) {
     if (!kind) throw new AppError('INVALID_TAG', `La etiqueta no esta en la taxonomia: ${name}`, 422);
     return [taxonomyKey(name), { name: name.trim(), kind }];
   })).values()];
-  const existing = await tx.tag.findMany({
-    where: { name: { in: unique.map((tag) => tag.name), mode: 'insensitive' } },
-  });
-  const found = new Map(existing.map((tag) => [taxonomyKey(tag.name), tag]));
-  for (const definition of unique) {
-    const key = taxonomyKey(definition.name);
-    if (found.has(key)) continue;
-    const tag = await tx.tag.upsert({
-      where: { name: definition.name },
-      update: { isActive: true, kind: definition.kind },
-      create: { name: definition.name, kind: definition.kind, slug: slugify(definition.name, 'tag') },
-    });
-    found.set(key, tag);
+  if (!unique.length) return [];
+  const definitions = unique.map((tag) => ({
+    ...tag,
+    key: taxonomyKey(tag.name),
+    slug: slugify(tag.name, 'tag'),
+  }));
+  for (const definition of [...definitions].sort((a, b) => a.key.localeCompare(b.key))) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`tag:${definition.key}`}, 0))`;
   }
-  return unique.map((tag) => found.get(taxonomyKey(tag.name))!);
+  const existing = await tx.tag.findMany({
+    where: {
+      OR: [
+        { name: { in: definitions.map((definition) => definition.name), mode: 'insensitive' } },
+        { slug: { in: definitions.map((definition) => definition.slug) } },
+      ],
+    },
+  });
+  const foundByKey = new Map(existing.map((tag) => [taxonomyKey(tag.name), tag]));
+  const foundBySlug = new Map(existing.map((tag) => [tag.slug, tag]));
+  const resolved = [];
+  for (const definition of definitions) {
+    let tag = foundByKey.get(definition.key) ?? foundBySlug.get(definition.slug);
+    if (!tag) {
+      tag = await tx.tag.create({
+        data: { name: definition.name, kind: definition.kind, slug: definition.slug },
+      });
+    } else if (!tag.isActive || tag.kind !== definition.kind) {
+      tag = await tx.tag.update({
+        where: { id: tag.id },
+        data: { isActive: true, kind: definition.kind },
+      });
+    }
+    foundByKey.set(definition.key, tag);
+    foundBySlug.set(definition.slug, tag);
+    resolved.push(tag);
+  }
+  return resolved;
 }
 
 export class WriterRepository {
@@ -105,7 +153,7 @@ export class WriterRepository {
       const data: Prisma.StoryCreateInput = {
         author: { connect: { id: params.authorId } },
         title: params.title,
-        slug: `${slugify(params.title, 'obra')}-${Date.now().toString().slice(-5)}`,
+        slug: uniqueStorySlug(params.title),
         synopsis: params.synopsis,
         status,
         isMature: ageRating === '18',

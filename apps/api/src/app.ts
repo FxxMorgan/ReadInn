@@ -96,6 +96,10 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     }
 
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      request.log.warn(
+        { err: error, target: error.meta?.['target'] },
+        'Unique constraint conflict',
+      );
       return reply.status(409).send({
         error: {
           code: 'RESOURCE_CONFLICT',
