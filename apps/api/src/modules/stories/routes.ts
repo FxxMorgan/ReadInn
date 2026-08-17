@@ -63,7 +63,7 @@ async function requireAdultAccess(request: FastifyRequest, storyId: string): Pro
 
 export function registerStoryRoutes(app: FastifyInstance): void {
   app.get('/v1/stories/filters', async (_request, reply) => {
-    reply.header('Cache-Control', 'public, max-age=86400');
+    reply.header('Cache-Control', 'public, max-age=300, must-revalidate');
     return { data: storyTaxonomyResponse() };
   });
 

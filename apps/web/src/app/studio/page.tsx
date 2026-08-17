@@ -6,6 +6,7 @@ import { ArchiveRestore, BookOpen, FilePlus2, ImagePlus, PenLine, Plus, Trash2 }
 import { useAuth } from '@/components/auth-provider';
 import { CoverCropDialog } from '@/components/cover-crop-dialog';
 import { apiFetch, apiUrl } from '@/lib/api';
+import { normalizeStoryTaxonomy } from '@/lib/story-taxonomy';
 import type { StorySummary, StoryTaxonomy } from '@/lib/types';
 
 export default function StudioPage() {
@@ -30,7 +31,7 @@ export default function StudioPage() {
   }, [filter]);
 
   useEffect(() => { if (user) void load(); }, [load, user]);
-  useEffect(() => { void apiFetch<StoryTaxonomy>('/v1/stories/filters').then(setTaxonomy).catch(() => undefined); }, []);
+  useEffect(() => { void apiFetch<StoryTaxonomy>('/v1/stories/filters?schema=2').then((value) => setTaxonomy(normalizeStoryTaxonomy(value))).catch(() => setTaxonomy(normalizeStoryTaxonomy(null))); }, []);
   useEffect(() => () => { if (coverPreview) URL.revokeObjectURL(coverPreview); }, [coverPreview]);
 
   function closeCreate() {

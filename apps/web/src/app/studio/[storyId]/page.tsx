@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Eye, FilePlus2, ImagePlus, PenLine, Save, Send, Tags, Trash2 } from 'lucide-react';
 import { CoverCropDialog } from '@/components/cover-crop-dialog';
 import { apiFetch, apiUrl } from '@/lib/api';
+import { normalizeStoryTaxonomy } from '@/lib/story-taxonomy';
 import type { ChapterSummary, StoryDetail, StoryTaxonomy } from '@/lib/types';
 
 export default function ManageStoryPage({ params }: { params: { storyId: string } }) {
@@ -26,7 +27,7 @@ export default function ManageStoryPage({ params }: { params: { storyId: string 
     setAgeRating(loaded.ageRating ?? (loaded.isMature ? '18' : 'all'));
   }, [params.storyId]);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { void apiFetch<StoryTaxonomy>('/v1/stories/filters').then(setTaxonomy); }, []);
+  useEffect(() => { void apiFetch<StoryTaxonomy>('/v1/stories/filters?schema=2').then((value) => setTaxonomy(normalizeStoryTaxonomy(value))).catch(() => setTaxonomy(normalizeStoryTaxonomy(null))); }, []);
 
   async function createChapter() {
     const chapter = await apiFetch<ChapterSummary>(`/v1/stories/${params.storyId}/chapters`, {

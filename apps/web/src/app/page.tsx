@@ -5,6 +5,7 @@ import { SlidersHorizontal, Star, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BookCard } from '@/components/book-card';
 import { apiFetch } from '@/lib/api';
+import { normalizeStoryTaxonomy } from '@/lib/story-taxonomy';
 import type { StorySummary, StoryTaxonomy } from '@/lib/types';
 
 const emptyTaxonomy: StoryTaxonomy = { genres: [], tagGroups: [], sortOptions: [], ageRatings: [] };
@@ -38,7 +39,7 @@ export default function ExplorePage() {
     void Promise.all([
       apiFetch<StoryTaxonomy>('/v1/stories/filters'),
       apiFetch<StorySummary | null>('/v1/stories/featured'),
-    ]).then(([filters, pick]) => { setTaxonomy(filters); setFeatured(pick); }).catch(() => undefined);
+    ]).then(([filters, pick]) => { setTaxonomy(normalizeStoryTaxonomy(filters)); setFeatured(pick); }).catch(() => undefined);
   }, []);
 
   useEffect(() => {
